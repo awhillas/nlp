@@ -1,16 +1,17 @@
 import operator
 
+
 class CYK:
 	""" Implementation of the classic CYK parsing algorithm
 	"""
 	def __init__(self, pcfg):
 		self.pcfg = pcfg
-		self.f = open("cyk_trouble_sents.txt",'w')
+		self.f = open("cyk_trouble_sents.txt", 'w')
 
 	def __enter__(self):
 		return self
 
-	def __exit__(self, type, value, traceback):
+	def __exit__(self, a_type, a_value, a_traceback):
 		""" Like a destructor. Need to use this class like:
 		```
 		with CYK() as parser:
@@ -25,7 +26,8 @@ class CYK:
 	def write_file(self, line):
 		self.f.write(line.encode('latin-1')+"\n")
 
-	def chunk(self, string):
+	@staticmethod
+	def chunk(string):
 		""" Just chunk on spaces for now. 
 			TODO: something more sophisticated.
 			return: array of word strings.
@@ -37,11 +39,11 @@ class CYK:
 			Based on notes from Standford NLP Coursera online course, 2012.
 			We don't have unary rules as we are using a strict CNF grammar.
 		"""
-		n = len(words)	# Number of words in the sentence.
+		n = len(words)  # Number of words in the sentence.
 		score = [[{} for _ in range(n + 1)] for _ in range(n + 1)]
 		back = [[{} for _ in range(n + 1)] for _ in range(n + 1)]
 		for i in range(0, n):
-			for A in self.pcfg.getWordTags(words[i]):	# unary non-terminals
+			for A in self.pcfg.getWordTags(words[i]):  # unary non-terminals
 				score[i][i+1][A] = self.pcfg.P((A, words[i]))
 				back[i][i+1][A] = (0, words[i])
 			# handle unarys...
@@ -61,7 +63,7 @@ class CYK:
 			for begin in range(0, n - span + 1):
 				end = begin + span
 				for split in range(begin+1, end):
-					rhs_permutations = self.pairPermutations(score[begin][split], score[split][end])
+					rhs_permutations = self.pair_permutations(score[begin][split], score[split][end])
 					for (A, B, C) in self.pcfg.lookupRulesFor(rhs_permutations):
 						score[begin][end].setdefault(A, 0)
 						if B in score[begin][split].keys() and C in score[split][end].keys():
@@ -69,7 +71,7 @@ class CYK:
 						if prob > score[begin][end][A]:
 							score[begin][end][A] = prob
 							back[begin][end][A] = (split, B, C)
-				# TODO: handle unaries here...
+				# handle unaries...
 				added = True
 				while added:
 					added = False
@@ -83,9 +85,9 @@ class CYK:
 
 		# if len(back[0][len(back[0])-1]) == 0:
 		# 	self.write_file(" ".join(words)) # keep problem sentences for debug
-		return self.buildTree(score, back, start_pos)
+		return self.build_tree(score, back, start_pos)
 
-	def buildTree(self, score, bp, start_pos):
+	def build_tree(self, score, bp, start_pos):
 		""" Reconstruct the best parse tree from the give back pointers
 		"""
 		row = 0
@@ -95,11 +97,11 @@ class CYK:
 				root = start_pos
 			else:
 				root = max(score[row][col].iteritems(), key=operator.itemgetter(1))[0]  # Find the max tree root
-			return self.getSubTree(root, (row, col), score, bp)
+			return self.get_subtree(root, (row, col), score, bp)
 		else:
 			return []
 
-	def getSubTree(self, constituent, position, score, bp):
+	def get_subtree(self, constituent, position, score, bp):
 		""" Rebuild the most probable parse from the score recursively
 		:param constituent: most probably parent constituent
 		:param position: where in the chart the constituent is
@@ -109,19 +111,20 @@ class CYK:
 		"""
 		row = position[0]
 		col = position[1]
-		if len( bp[row][col][constituent]) == 3:
+		if len(bp[row][col][constituent]) == 3:
 			split, left, right = bp[row][col][constituent]
-			l = self.getSubTree(left, (row, split), score, bp)
-			r = self.getSubTree(right, (split, col), score, bp)
+			l = self.get_subtree(left, (row, split), score, bp)
+			r = self.get_subtree(right, (split, col), score, bp)
 			return [constituent, l, r]
 		else:
 			split, left = bp[row][col][constituent]
 			if left != constituent and self.pcfg.isNonTerminal(left):
-				return [constituent, self.getSubTree(left, position, score, bp)]
+				return [constituent, self.get_subtree(left, position, score, bp)]
 			else:
 				return [constituent, left]
 
-	def pretty(self, matrix):
+	@staticmethod
+	def pretty(matrix):
 		""" Prints a 2D table nice!
 			:param matrix: 2D array to print pretty
 		"""
@@ -131,7 +134,8 @@ class CYK:
 		table = [fmt.format(*row) for row in s]
 		print '\n'.join(table)
 
-	def pairPermutations(self, left, right):
+	@staticmethod
+	def pair_permutations(left, right):
 		pairs = []
 		if len(left) > 0 and len(right) > 0:
 			for (l, v) in left.iteritems():

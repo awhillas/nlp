@@ -5,9 +5,10 @@ __date__ ="$Nov 6, 2014"
 
 #from Counts import Counts
 
+
 class PCFG:
 	
-	def __init__(self, counts, pseudo_word_freq = 5):
+	def __init__(self, counts, pseudo_word_freq=5):
 		""" counts: Counts object.
 			smoothing: type of smoothing. only 'Laplace Add-1' at the moment.
 		"""

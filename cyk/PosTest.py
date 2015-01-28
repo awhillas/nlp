@@ -1,10 +1,14 @@
+from ml_framework import MachineLearningModule
+
 
 class PosTest(MachineLearningModule):
-	
-	input_module = 'cyk.parse'
+
+	def __init__(self, config, data_set_id):
+		MachineLearningModule.__init__(self, config, data_set_id)
+		self.input_module = 'cyk.Parse'
 	
 	def run(self, parser):
-		gold_standard = open(self.config.get(self.data_set_id, "testing_tags_file"), "rU")
+		gold_standard = open(self.config.get(self.data_id, "testing_tags_file"), "rU")
 		for tree in parser.results:
 			# Get just the POS for the
 			result = [pos for word, pos in tree.pos()]
@@ -12,5 +16,7 @@ class PosTest(MachineLearningModule):
 			if len(result) == len(target):
 				errors = len([i for i, j in zip(result, target) if i != j])
 			elif len(result) < len(target):
-			else:	# target shorter..
 				pass
+			else:  # target shorter..
+				pass
+		return True
