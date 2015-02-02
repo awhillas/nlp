@@ -1,5 +1,5 @@
 from ml_framework import MachineLearningModule
-from cyk.CYK import CYK
+from cyk import CYK
 from pcfg import PCFG
 from MyTree import MyTree
 
