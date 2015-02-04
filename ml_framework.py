@@ -54,3 +54,9 @@ class MachineLearningModule:  # Interface.
 		""" Return a unique filename.
 		"""
 		return self.__class__.__name__ + ".pickle.data"
+
+	def get_input_file_name(self):
+		return self.config.get(self.data_id, "training_file")
+
+	def get_output_file_name(self):
+		return self.config.get(self.data_id, "testing_tags_file") + '/' + self.__class__.__name__

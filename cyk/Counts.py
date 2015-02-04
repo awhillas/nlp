@@ -6,8 +6,6 @@ __date__ = "$Sep 12, 2012"
 import sys
 import json
 from nltk.tree import Tree
-#from nltk.corpus import BracketParseCorpusReader
-#from nltk.corpus import treebank	# Expects the data in its corpus repo :(
 
 
 class Counts:
