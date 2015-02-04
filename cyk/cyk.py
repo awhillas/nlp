@@ -40,8 +40,8 @@ class CYK:
 			We don't have unary rules as we are using a strict CNF grammar.
 		"""
 		n = len(words)  # Number of words in the sentence.
-		score = [[{} for _ in range(n + 1)] for _ in range(n + 1)]
-		back = [[{} for _ in range(n + 1)] for _ in range(n + 1)]
+		score = [[{} for _ in range(n + 1)] for _ in range(n + 1)]  # Constituent likelihoods
+		back = [[{} for _ in range(n + 1)] for _ in range(n + 1)]  # Back-pointers
 		for i in range(0, n):
 			for A in self.pcfg.getWordTags(words[i]):  # unary non-terminals
 				score[i][i+1][A] = self.pcfg.P((A, words[i]))

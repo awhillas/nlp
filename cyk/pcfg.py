@@ -18,8 +18,8 @@ class PCFG:
 	def P(self, R):
 		""" Maximum-likelihood estimate (MLE) of the given 'X -> y Z' or 'X -> word'
 			production rule.
-			R: Tuple of the form (X, Y, Z) or (X, word)
-			return: MLE of given rule.
+			:param R: Tuple of the form (X, Y, Z) or (X, word) where X, Y and Z are tags.
+			:return: MLE of given rule.
 		"""
 		X = R[0]
 		if len(R) > 2:

@@ -27,8 +27,9 @@ class Experiment:
 			# Load save previous module if not present
 			if previous_module is None:
 				if not m.input_module is None:
-					previous_module = importlib.import_module(m.input_module)
+					previous_module = self.load(m.input_module)
 					previous_module.load(self.working_dir)
+					print "Loaded: ", previous_module.__class__.__name__
 
 			# Do the work
 			success = m.run(previous_module)
@@ -52,7 +53,6 @@ class Experiment:
 		module = importlib.import_module(name, package)
 		m = getattr(module, cls)
 		return m(self.config, self.data_set_id)
-
 
 
 if __name__ == "__main__":
