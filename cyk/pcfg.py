@@ -1,20 +1,15 @@
-#! /usr/bin/python
-
-__author__="Alexander Whillas <whillas@gmail.com>"
-__date__ ="$Nov 6, 2014"
-
-#from Counts import Counts
+from memorise import memoised
 
 
 class PCFG:
-	
+
 	def __init__(self, counts, pseudo_word_freq=5):
 		""" counts: Counts object.
 			smoothing: type of smoothing. only 'Laplace Add-1' at the moment.
 		"""
 		self.counts = counts
-		self.counts.mapToPseudoWords(pseudo_word_freq)
-		
+		self.counts.map_to_pseudo_words(pseudo_word_freq)
+
 	def P(self, R):
 		""" Maximum-likelihood estimate (MLE) of the given 'X -> y Z' or 'X -> word'
 			production rule.
@@ -32,35 +27,11 @@ class PCFG:
 			if R in self.counts.unary.keys():
 				return float(self.counts.unary[R]) / self.counts.nonterm[X]
 			elif (X, pseudo_word) in self.counts.unary.keys():   # map to pseudo word
+				print "Using pseudo word: ", pseudo_word, " for ", R
 				return float(self.counts.unary[(X, pseudo_word)]) / self.counts.nonterm[X]
 		return 0
-	
-	def unarys(self):
-		return self.counts.T.keys()
-	
-	def isUnary(self, A):
-		return A in self.counts.unary.keys()
-		
-	def binarys(self):
-		return self.counts.binary.keys()
-	
-	def isBinaryRule(self, N):
-		""" Get all the production rules for the non-terminal N
-		"""
-		return N in self.counts.N and len(self.counts.N[N]) > 1
 
-	def isNonTerminal(self, X):
-		return X in self.counts.unary.keys() or X in self.counts.nonterm.keys()
-
-	def getBinaryRulesFor(self, X):
-		if X in self.counts.N.keys():
-			print "Rule: ", X, " has ", len(self.counts.N[X]), " rules"
-			return self.counts.N[X]
-		else:
-			print "NO binary rule for ", X
-			return {}
-
-	def getUnaryRulesFor(self, rhs_list):
+	def get_unary_rules_for(self, rhs_list):
 		"""
 		Lookup unary rules given the RHS rule
 		:param rhs_list: Ys if the rule is X -> Y
@@ -68,26 +39,31 @@ class PCFG:
 		"""
 		out = set()
 		for Y in rhs_list:
-			if Y in self.counts.reverseT.keys():
-				for X in self.counts.reverseT[Y]:
+			if Y in self.counts.reverse_unary.keys():
+				for X in self.counts.reverse_unary[Y]:
+					print "Adding unary ", (X, Y)
 					out.add((X, Y))
 		return out
 
-	def lookupRulesFor(self, rhs_pair):
+	def lookup_rules_for(self, rhs_left_corners, rhs_right_corners):
 		""" Look up the rule heads based on RHS of rules.
-			:param rhs_pair: list of RHS of binary rule tuples
+			i.e. X -> Y Z filter rules by Y then Z
+			:param rhs_left_corners: list of RHS left corner POS tags
+			:param rhs_right_corners: list of RHS right corner POS tags
 			:return: list of binary rule tuples
 		"""
+		rules = set()
+		for Y, count in rhs_left_corners.iteritems():
+			if count > 0:
+				rule = self.counts.get_binary_by_left_corner(Y)
+				if not rule is None:
+					assert len(rule) == 3
+					rules.add(rule)
 		out = set()
-		for Y, Z in rhs_pair:
-			lhs_pairs = self.counts.reverseLookup((Y, Z))
-			for X in lhs_pairs:
+		for (X, Y, Z) in rules:
+			if Z in rhs_right_corners:
 				out.add((X, Y, Z))
 		return out
 
-	def getWordTags(self, word):
-		if word in self.counts.word_tags.keys():
-			return self.counts.word_tags[word]
-		else:
-			# could be any unary tag so return them all
-			return self.counts.T.keys()
+	def get_word_pos_tags(self, word):
+		return self.counts.get_pos_tags(word)

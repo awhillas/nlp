@@ -11,11 +11,5 @@ class Train(MachineLearningModule):
 	def run(self, last):
 		# Training
 		print "Training model..."
-		i = 0
-		data = open(self.config.get(self.data_id, "training_file"), "rU")
-		for sentence in data:
-			i += 1
-			if i % 100 == 0:
-				print i
-			self.model.nltk_count(sentence)
+		self.model.count_trees(self.config.get(self.data_id, "training_file"))
 		return True

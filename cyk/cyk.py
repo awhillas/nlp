@@ -34,23 +34,25 @@ class CYK:
 		"""
 		return string.split()
 
-	def cyk(self, words, start_pos):
+	def cyk(self, raw_words, start_pos):
 		""" Cocke-Kasami-Younger (CKY) Constituency Parsing
 			Based on notes from Standford NLP Coursera online course, 2012.
-			We don't have unary rules as we are using a strict CNF grammar.
+			We do have unary rules as we are using a non-strict CNF grammar.
 		"""
+		words = self.normaise(raw_words)
 		n = len(words)  # Number of words in the sentence.
 		score = [[{} for _ in range(n + 1)] for _ in range(n + 1)]  # Constituent likelihoods
 		back = [[{} for _ in range(n + 1)] for _ in range(n + 1)]  # Back-pointers
 		for i in range(0, n):
-			for A in self.pcfg.getWordTags(words[i]):  # unary non-terminals
+			pos = self.pcfg.get_word_pos_tags(words[i])
+			for A in pos:  # unary non-terminals
 				score[i][i+1][A] = self.pcfg.P((A, words[i]))
 				back[i][i+1][A] = (0, words[i])
 			# handle unarys...
 			added = True
 			while added:
 				added = False
-				for A, B in self.pcfg.getUnaryRulesFor(score[i][i+1].keys()):
+				for A, B in self.pcfg.get_unary_rules_for(score[i][i+1].keys()):
 					if B in score[i][i+1].keys() and score[i][i+1][B] > 0:
 						prob = self.pcfg.P((A, B)) * score[i][i+1][B]
 						if not A in score[i][i+1].keys() or prob > score[i][i+1][A]:
@@ -63,19 +65,18 @@ class CYK:
 			for begin in range(0, n - span + 1):
 				end = begin + span
 				for split in range(begin+1, end):
-					rhs_permutations = self.pair_permutations(score[begin][split], score[split][end])
-					for (A, B, C) in self.pcfg.lookupRulesFor(rhs_permutations):
+					for (A, B, C) in self.pcfg.lookup_rules_for(score[begin][split], score[split][end]):
 						score[begin][end].setdefault(A, 0)
 						if B in score[begin][split].keys() and C in score[split][end].keys():
 							prob = score[begin][split][B] * score[split][end][C] * self.pcfg.P((A, B, C))
 						if prob > score[begin][end][A]:
 							score[begin][end][A] = prob
 							back[begin][end][A] = (split, B, C)
-				# handle unaries...
+				# handle unarys...
 				added = True
 				while added:
 					added = False
-					for A, B in self.pcfg.getUnaryRulesFor(score[begin][end].keys()):
+					for A, B in self.pcfg.get_unary_rules_for(score[begin][end].keys()):
 						prob = self.pcfg.P((A, B)) * score[begin][end][B]
 						if not A in score[begin][end].keys() or prob > score[begin][end][A]:
 							score[begin][end].setdefault(A, prob)
@@ -86,6 +87,12 @@ class CYK:
 		# if len(back[0][len(back[0])-1]) == 0:
 		# 	self.write_file(" ".join(words)) # keep problem sentences for debug
 		return self.build_tree(score, back, start_pos)
+
+	def normaise(self, words):
+		out = []
+		for w in words:
+			out.append(self.pcfg.counts.pseudo_map_digits(w))
+		return out
 
 	def build_tree(self, score, bp, start_pos):
 		""" Reconstruct the best parse tree from the give back pointers
@@ -133,12 +140,3 @@ class CYK:
 		fmt = '\t'.join('{{:{}}}'.format(x) for x in lens)
 		table = [fmt.format(*row) for row in s]
 		print '\n'.join(table)
-
-	@staticmethod
-	def pair_permutations(left, right):
-		pairs = []
-		if len(left) > 0 and len(right) > 0:
-			for (l, v) in left.iteritems():
-				for (r, v2) in right.iteritems():
-					pairs.append((l, r))
-		return pairs

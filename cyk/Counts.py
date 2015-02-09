@@ -4,43 +4,62 @@ __author__ = "Alexander Whillas, Alexander Rush <srush@csail.mit.edu>"
 __date__ = "$Sep 12, 2012"
 
 import sys
-import json
+import re
 from nltk.tree import Tree
+
+
+_digits = re.compile('\d')
+def contains_digits(d):
+	return bool(_digits.search(d))
 
 
 class Counts:
 	"""
-	Count rule frequencies in a binarised CFG.
+	Count rule frequencies in CFG.
 	This was nicked from the Coursera course on NLP.
 	"""
 	def __init__(self):
-		self.unary = {}
-		self.binary = {}
-		self.nonterm = {}
+		self.unary = {}  # X -> terminal + X -> Y (i.e. non-terminal unarys)
+		self.binary = {}  # X -> Y Z
+		self.nonterm = {}  # Non-terminal rule frequency (unused?)
 		self.N = {}  # Non-terminal counter
-		self.T = {}  # Terminal counter
+		#self.T = {}  # Terminal counter (no non-terminals)
 		self.reverseN = {}  # Binary rule reverse lookup.
-		self.reverseT = {}  # Unary rule reverse lookup.
-		self.word_tags = {} # track word tags.
+		self.reverseN_keys = []  # cache for the keys to speed up lookup
+		self.reverseN_left_hand_corner = {}  # i.e. for X -> Y Z then index by Y
+		self.reverse_unary = {}  # Unary rule reverse lookup i.e. indexed by Y
+		self.word_pos = {}  # track {word -> set(tags)}.
 
 	def show(self, X):
 		for Y, Z in self.N[X]:
 			print X, '->', Y, Z
 
-	def nltk_count(self, s):
+	def count_trees(self, file_path, freq_threshold=5):
+		with open(file_path, "rU") as data:
+			i = 0
+			for sentence in data:
+				i += 1
+				if i % 100 == 0:
+					print i
+				self.cnf_count(sentence)
+		self.map_to_pseudo_words(freq_threshold)
+		self.reverseN_keys = self.reverseN.keys()  # cache the keys
+
+	def cnf_count(self, s):
 		"""
-		Count the tree data.
+		Convert the tree to Chomsky Normal Form (CNF) and then count the tree data.
+		Cleans the given string a little.
 		:param s: String tree in bracketed form
 		"""
 		tree = Tree.fromstring(s.decode('utf-8').replace(u"\u00A0", " "))
 		tree.chomsky_normal_form()
-		self._nltk_count(tree)
+		self.count(tree)
 
-	def _nltk_count(self, tree):
+	def count(self, tree):
 		symbol = tree.label()
 
 		if not symbol:
-			return self._nltk_count(tree[0])
+			return self.count(tree[0])
 
 		self.nonterm.setdefault(symbol, 0)
 		self.nonterm[symbol] += 1
@@ -58,124 +77,140 @@ class Counts:
 			self.N[symbol].setdefault((y1, y2), 0)
 			self.N[symbol][(y1, y2)] += 1
 
-			self.reverseN.setdefault((y1, y2), set())
+			self.reverseN.setdefault((y1, y2), set)
 			self.reverseN[(y1, y2)].add(symbol)
 
-			self._nltk_count(tree[0])
-			self._nltk_count(tree[1])
+			self.reverseN_left_hand_corner.setdefault(y1, set)
+			self.reverseN_left_hand_corner[y1].add(key)
+
+			self.count(tree[0])
+			self.count(tree[1])
 
 		elif len(tree) == 1:        # It is a unary rule.
 
 			if isinstance(tree[0], unicode):
-				# unary -> terminal
+				# X -> terminal
 				y1 = tree[0]
+				# self.T.setdefault(symbol, {})
+				# self.T[symbol].setdefault(y1, 0)
+				# self.T[symbol][y1] += 1
+				self.word_pos.setdefault(y1, set())
+				self.word_pos[y1].add(symbol)
 			else:
-				# unary non-terminal -> non-terminal
-				self._nltk_count(tree[0])
+				# X -> Y unary rules
+				self.count(tree[0])
 				y1 = tree[0].label()
+				self.reverse_unary.setdefault(y1, set())
+				self.reverse_unary[y1].add(symbol)
 
 			key = (symbol, y1)
 
 			self.unary.setdefault(key, 0)
 			self.unary[key] += 1
 
-			self.T.setdefault(symbol, {})
-			self.T[symbol].setdefault(y1, 0)
-			self.T[symbol][y1] += 1
+	def get_pos_tags(self, word):
+		if self.have_seen(word):
+			return self.word_pos[word]
 
-			self.reverseT.setdefault(y1, set())
-			self.reverseT[y1].add(symbol)
+		pseudo_word = self.normalise(word)
+		if self.have_seen(pseudo_word):
+			return self.word_pos[pseudo_word]
 
-			self.word_tags.setdefault(y1, set())
-			self.word_tags[y1].add(symbol)
+		return self.nonterm.keys()  # TODO: come up with something better if never seen word or its normaisation.
 
-	def count(self, tree):
-		"""
-		Count the frequencies of non-terminals and rules in the tree.
-		"""
-		if isinstance(tree, basestring): return
+	def have_seen(self, word):
+		return word in self.word_pos.keys()
 
-		# Count the non-terminal symbol.
-		symbol = tree[0]
-		if not tree[0]: return  #ignore empties
+	def get_binary_by_left_corner(self, Y):
+		if Y in self.reverseN_left_hand_corner:
+			return self.reverseN_left_hand_corner[Y]
+		else:
+			return None
 
-		self.nonterm.setdefault(symbol, 0)
-		self.nonterm[symbol] += 1
-
-		if len(tree) == 3:
-			# It is a binary rule.
-			y1, y2 = (tree[1][0], tree[2][0])
-			key = (symbol, y1, y2)
-			self.binary.setdefault(key, 0)
-			self.binary[(symbol, y1, y2)] += 1
-
-			self.N.setdefault(symbol, {})
-			self.N[symbol].setdefault((y1, y2), 0)
-			self.N[symbol][(y1, y2)] += 1
-
-			self.reverseN[(y1, y2)] = symbol
-
-			# Recursively count the children.
-			self.count(tree[1])
-			self.count(tree[2])
-
-		elif len(tree) == 2:
-			# It is a unary rule.
-			if isinstance(tree[1], list):
-				y1 = tree[1][0]     # unary with a sub-unary
-				self.count(tree[1]) # count the sub-unarys
-			else:
-				y1 = tree[1]
-			key = (symbol, y1)
-
-			self.unary.setdefault(key, 0)
-			self.unary[key] += 1
-
-			self.T.setdefault(symbol, {})
-			self.T[symbol].setdefault(y1, 0)
-			self.T[symbol][y1] += 1
-
-			self.word_tags.setdefault(y1, set())
-			self.word_tags[y1].add(symbol)
-
-	def mapToPseudoWords(self, threshold):
+	def map_to_pseudo_words(self, freq_threshold=5):
 		""" Map words with a frequency less than the freq_threshold to pseudo-word
 		"""
-		new_unary_counts = {}
+		normaised = {}
 		for (X, word), count in self.unary.iteritems():
-			if count < threshold:
-				pseudo = self.pseudo_map(word)
-				new_unary_counts.setdefault((X, pseudo), 0)
-				new_unary_counts[(X, pseudo)] += count
+			if count < freq_threshold:
+				pseudo = self.normalise(word)
+				normaised.setdefault((X, pseudo), 0)
+				normaised[(X, pseudo)] += count
+				self.word_pos.setdefault(pseudo, set())
+				self.word_pos[pseudo].add(X)
 			else:
-				new_unary_counts[(X, word)] = count
-		self.unary = new_unary_counts
+				normaised[(X, word)] = count
+		self.unary = normaised  # Can't change the dict we're iterating though
 
-	def pseudo_map(self, word):
-		""" Map a word to a pseudo word
-			atm all words are mapped to the same word.
-			TODO: make more fine-grained.
-		"""
-		return "_RARE_"
-
-	def read_json_file(self, parse_file):
-		for l in open(parse_file):
-			t = json.loads(l)	# Parse JSON data.
-			self.count(t)
-
-	def reverseLookup(self, rhs):
-		""" Get the head (LHS) of the production rules given the rules)
-		"""
-		if rhs in self.reverseN.keys():
-			return self.reverseN[rhs]
+	@classmethod
+	def normalise(cls, word):
+		out = cls.pseudo_map_digits(word)
+		if out == word:
+			return cls.pseudo_map(word)
 		else:
-			return {}
+			return out
+
+	@classmethod
+	def pseudo_map_digits(cls, word):
+		""" Map a word to a pseudo word with digits.
+			Want to apply this to all input words.
+			See Michael Collins' NLP Coursera notes, chap.2
+			:rtype: str
+		"""
+		if contains_digits(word):
+			if word.isdigit():
+				if len(word) == 2:
+					return '!twoDigitNum'
+				elif len(word) == 4:
+					return '!fourDigitNum'
+				else:
+					return '!otherNumber'
+			elif '-' in word:
+				return '!containsDigitAndDash'
+			elif '/' in word:
+				return '!containsDigitAndSlash'
+			elif ',' in word:
+				return '!containsDigitAndComma'
+			elif '.' in word:
+				return '!containsDigitAndPeriod'
+			elif word.isalnum():
+				return '!containsDigitAndAlpha'
+		return word
+
+	@classmethod
+	def pseudo_map(cls, word):
+		""" Map a word to a pseudo word.
+			Want to apply this only to lexicon words with low frequency.
+			See Michael Collins' NLP Coursera notes, chap.2
+			:rtype: str
+		"""
+		if len(word) > 1 and word[0].isupper() and word[1] == '.':
+			return '!capPeriod'  # Person's name initial i.e. "M."
+
+		if word.isupper():
+			return '!allCaps'
+
+		if word.istitle():
+			return '!initCap'   # TODO: should distinguish between words at beginning of sentence?
+
+		if word.islower():
+			return '!lowercase'
+
+		return "!other"     # weird punctuation etc
+
+	# def reverse_lookup(self, rhs):
+	# 	""" Get the head (LHS) of the production rules given the rules)
+	# 	"""
+	# 	if rhs in self.reverseN_keys:
+	# 		return self.reverseN[rhs]
+	# 	else:
+	# 		return {}
 
 def main(parse_file):
 	counter = Counts()
 	#counter.read_json_file(parse_file)
 	for s in open(parse_file, "rU"):
-		counter.nltk_count(s)
+		counter.cnf_count(s)
 
 def usage():
 	sys.stderr.write("""
