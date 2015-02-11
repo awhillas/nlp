@@ -1,5 +1,8 @@
 .DS_Store
 
+# cProfile dumps
+dump.cprofile
+
 # PyCharms config crap
 .idea/
 
