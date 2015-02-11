@@ -1,7 +1,8 @@
+import pytest
+from os import path
+
 from cyk.Counts import Counts
 from cyk.pcfg import PCFG
-from os import path
-import pytest
 
 
 HERE = path.dirname(__file__)
@@ -10,7 +11,7 @@ HERE = path.dirname(__file__)
 @pytest.fixture
 def model():
 	model = Counts()
-	model.count_trees(path.join(HERE, 'four.trees.txt'), 1)
+	model.count_trees(path.join(HERE, 'bnc_test_trees.txt'), 1)
 	return model
 
 def test_normalisepings():
