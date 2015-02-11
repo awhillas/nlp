@@ -1,0 +1,3 @@
+(TOP (S (VP (VB Retrace) (NP (PRP$ your) (NNS steps)) (PP (IN to) (NP (NNP Aberarder)))) (. .)))
+(TOP (S (VP (VB Do) (RB n't) (VP (VB let) (S (NP (PRP 's)) (VP (VB throw) (NP (PRP$ your) (NNS words)) (ADVP (RP away))))))))
+(TOP (FRAG (VP (VBG pulsing) (PP (IN with) (NP (NP (DT the) (NNS colors)) (PP (IN of) (NP (JJ shared) (NN thought)))))))) 
