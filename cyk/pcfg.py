@@ -1,4 +1,4 @@
-from memorise import memoised
+#from memorise import memoised
 
 
 class PCFG:
