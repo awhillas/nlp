@@ -19,7 +19,7 @@ class PCFG:
 		X = R[0]
 		if len(R) > 2:
 			# Binary rule
-			if R in self.counts.binary.keys():
+			if R in self.counts.binary:
 				return float(self.counts.binary[R]) / self.counts.nonterm[X]
 		else:
 			# unarys rule

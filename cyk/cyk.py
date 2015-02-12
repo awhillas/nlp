@@ -52,10 +52,10 @@ class CYK:
 			added = True
 			while added:
 				added = False
-				for A, B in self.pcfg.get_unary_rules_for(score[i][i+1].keys()):
-					if B in score[i][i+1].keys() and score[i][i+1][B] > 0:
+				for A, B in self.pcfg.get_unary_rules_for(score[i][i+1]):
+					if B in score[i][i+1] and score[i][i+1][B] > 0:
 						prob = self.pcfg.P((A, B)) * score[i][i+1][B]
-						if not A in score[i][i+1].keys() or prob > score[i][i+1][A]:
+						if not A in score[i][i+1] or prob > score[i][i+1][A]:
 							score[i][i+1].setdefault(A, 0)
 							score[i][i+1][A] = prob
 							back[i][i+1].setdefault(A, (0, B))
@@ -67,7 +67,7 @@ class CYK:
 				for split in range(begin+1, end):
 					for (A, B, C) in self.pcfg.lookup_rules_for(score[begin][split], score[split][end]):
 						score[begin][end].setdefault(A, 0)
-						if B in score[begin][split].keys() and C in score[split][end].keys():
+						if B in score[begin][split] and C in score[split][end]:
 							prob = score[begin][split][B] * score[split][end][C] * self.pcfg.P((A, B, C))
 						if prob > score[begin][end][A]:
 							score[begin][end][A] = prob
@@ -76,9 +76,9 @@ class CYK:
 				added = True
 				while added:
 					added = False
-					for A, B in self.pcfg.get_unary_rules_for(score[begin][end].keys()):
+					for A, B in self.pcfg.get_unary_rules_for(score[begin][end]):
 						prob = self.pcfg.P((A, B)) * score[begin][end][B]
-						if not A in score[begin][end].keys() or prob > score[begin][end][A]:
+						if not A in score[begin][end] or prob > score[begin][end][A]:
 							score[begin][end].setdefault(A, prob)
 							score[begin][end][A] = prob
 							back[begin][end][A] = (0, B)

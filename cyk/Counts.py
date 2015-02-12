@@ -39,7 +39,6 @@ class Counts:
 					print i
 				self.cnf_count(sentence)
 		self.map_to_pseudo_words(freq_threshold)
-		self.reverseN_keys = self.reverseN.keys()  # cache the keys
 
 	def cnf_count(self, s):
 		"""
@@ -105,15 +104,16 @@ class Counts:
 			self.unary[key] += 1
 
 	def is_terminal(self, word):
-		return word in self.word_pos.keys()  # TODO: cache this call to .keys()
+		return word in self.word_pos
 
 	def is_unary_non_terminal(self, Y):
-		return Y in self.reverse_unary.keys()
+		return Y in self.reverse_unary
 
 	def is_unary(self, key):
 		return key in self.unary
 
 	def get_pos_tags(self, word):
+		""" Get Parts-of-Speech tags for the given word """
 		if self.is_terminal(word) or not self.is_unary_non_terminal(word):
 
 			if self.have_seen(word):
@@ -128,24 +128,20 @@ class Counts:
 			return []
 
 	def get_unary_rules_for(self, rhs_list):
-		"""
-		Lookup unary rules given the right-hand-side rule
+		""" Lookup unary rules given the right-hand-side rule
 		:param rhs_list: Ys if the rule is X -> Y
 		:return: set
 		"""
 		out = set()
 		for Y in rhs_list:
-			if Y in self.reverse_unary.keys():
+			if Y in self.reverse_unary:
 				for X in self.reverse_unary[Y]:
 					out.add((X, Y))
 		return out
 
 	def have_seen(self, word):
-		""" Have we seen this word/terminal before?
-		:param word: str
-		:return: bool
-		"""
-		return word in self.word_pos.keys()
+		""" Have we seen this word/terminal before? """
+		return self.is_terminal(word)
 
 	def get_binary_by_left_corner(self, Y):
 		if Y in self.reverseN_left_hand_corner:
@@ -154,8 +150,7 @@ class Counts:
 			return []
 
 	def map_to_pseudo_words(self, freq_threshold=5):
-		""" Map words with a frequency less than the freq_threshold to pseudo-word
-		"""
+		""" Map words with a frequency less than the freq_threshold to pseudo-word """
 		normaised = {}
 		for (X, word), count in self.unary.iteritems():
 			if not self.is_unary_non_terminal(word) and count < freq_threshold:
