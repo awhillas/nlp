@@ -125,7 +125,7 @@ class CYK:
 			return [constituent, l, r]
 		else:
 			split, left = bp[row][col][constituent]
-			if left != constituent and self.pcfg.isNonTerminal(left):
+			if left != constituent and self.pcfg.is_non_terminal(left):
 				return [constituent, self.get_subtree(left, position, score, bp)]
 			else:
 				return [constituent, left]

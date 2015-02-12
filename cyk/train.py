@@ -11,5 +11,5 @@ class Train(MachineLearningModule):
 	def run(self, last):
 		# Training
 		print "Training model..."
-		self.model.count_trees(self.config.get(self.data_id, "training_file"))
+		self.model.count_trees(self.config.get(self.data_id, "training_file"), 2)
 		return True

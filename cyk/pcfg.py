@@ -14,7 +14,7 @@ class PCFG:
 		""" Maximum-likelihood estimate (MLE) of the given 'X -> y Z' or 'X -> word'
 			production rule.
 			:param R: Tuple of the form (X, Y, Z) or (X, word) where X, Y and Z are tags.
-			:return: MLE of given rule.
+			:return: float, MLE of given rule.
 		"""
 		X = R[0]
 		if len(R) > 2:
@@ -24,26 +24,14 @@ class PCFG:
 		else:
 			# unarys rule
 			pseudo_word = self.counts.pseudo_map(R[1])
-			if R in self.counts.unary.keys():
+			if self.counts.is_unary(R):
 				return float(self.counts.unary[R]) / self.counts.nonterm[X]
-			elif (X, pseudo_word) in self.counts.unary.keys():   # map to pseudo word
-				print "Using pseudo word: ", pseudo_word, " for ", R
+			elif self.counts.is_unary((X, pseudo_word)):   # map to pseudo word
 				return float(self.counts.unary[(X, pseudo_word)]) / self.counts.nonterm[X]
-		return 0
+		return 0.0
 
 	def get_unary_rules_for(self, rhs_list):
-		"""
-		Lookup unary rules given the RHS rule
-		:param rhs_list: Ys if the rule is X -> Y
-		:return:
-		"""
-		out = set()
-		for Y in rhs_list:
-			if Y in self.counts.reverse_unary.keys():
-				for X in self.counts.reverse_unary[Y]:
-					print "Adding unary ", (X, Y)
-					out.add((X, Y))
-		return out
+		return self.counts.get_unary_rules_for(rhs_list)
 
 	def lookup_rules_for(self, rhs_left_corners, rhs_right_corners):
 		""" Look up the rule heads based on RHS of rules.
@@ -52,18 +40,20 @@ class PCFG:
 			:param rhs_right_corners: list of RHS right corner POS tags
 			:return: list of binary rule tuples
 		"""
-		rules = set()
+		candidates = set()
 		for Y, count in rhs_left_corners.iteritems():
 			if count > 0:
-				rule = self.counts.get_binary_by_left_corner(Y)
-				if not rule is None:
+				for rule in self.counts.get_binary_by_left_corner(Y):
 					assert len(rule) == 3
-					rules.add(rule)
+					candidates.add(rule)
 		out = set()
-		for (X, Y, Z) in rules:
+		for (X, Y, Z) in candidates:
 			if Z in rhs_right_corners:
 				out.add((X, Y, Z))
 		return out
 
 	def get_word_pos_tags(self, word):
 		return self.counts.get_pos_tags(word)
+
+	def is_non_terminal(self, word):
+		return self.counts.is_unary_non_terminal(word)

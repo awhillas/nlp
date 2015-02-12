@@ -22,17 +22,13 @@ class Counts:
 		self.unary = {}  # X -> terminal + X -> Y (i.e. non-terminal unarys)
 		self.binary = {}  # X -> Y Z
 		self.nonterm = {}  # Non-terminal rule frequency (unused?)
-		self.N = {}  # Non-terminal counter
+		self.N = {}  # Non-terminal counter. Rule RHS indexed by rule LHS
 		#self.T = {}  # Terminal counter (no non-terminals)
 		self.reverseN = {}  # Binary rule reverse lookup.
 		self.reverseN_keys = []  # cache for the keys to speed up lookup
 		self.reverseN_left_hand_corner = {}  # i.e. for X -> Y Z then index by Y
 		self.reverse_unary = {}  # Unary rule reverse lookup i.e. indexed by Y
 		self.word_pos = {}  # track {word -> set(tags)}.
-
-	def show(self, X):
-		for Y, Z in self.N[X]:
-			print X, '->', Y, Z
 
 	def count_trees(self, file_path, freq_threshold=5):
 		with open(file_path, "rU") as data:
@@ -77,10 +73,10 @@ class Counts:
 			self.N[symbol].setdefault((y1, y2), 0)
 			self.N[symbol][(y1, y2)] += 1
 
-			self.reverseN.setdefault((y1, y2), set)
+			self.reverseN.setdefault((y1, y2), set())
 			self.reverseN[(y1, y2)].add(symbol)
 
-			self.reverseN_left_hand_corner.setdefault(y1, set)
+			self.reverseN_left_hand_corner.setdefault(y1, set())
 			self.reverseN_left_hand_corner[y1].add(key)
 
 			self.count(tree[0])
@@ -98,7 +94,7 @@ class Counts:
 				self.word_pos[y1].add(symbol)
 			else:
 				# X -> Y unary rules
-				self.count(tree[0])
+				self.count(tree[0])  # recurs
 				y1 = tree[0].label()
 				self.reverse_unary.setdefault(y1, set())
 				self.reverse_unary[y1].add(symbol)
@@ -108,31 +104,61 @@ class Counts:
 			self.unary.setdefault(key, 0)
 			self.unary[key] += 1
 
+	def is_terminal(self, word):
+		return word in self.word_pos.keys()  # TODO: cache this call to .keys()
+
+	def is_unary_non_terminal(self, Y):
+		return Y in self.reverse_unary.keys()
+
+	def is_unary(self, key):
+		return key in self.unary
+
 	def get_pos_tags(self, word):
-		if self.have_seen(word):
-			return self.word_pos[word]
+		if self.is_terminal(word) or not self.is_unary_non_terminal(word):
 
-		pseudo_word = self.normalise(word)
-		if self.have_seen(pseudo_word):
-			return self.word_pos[pseudo_word]
+			if self.have_seen(word):
+				return self.word_pos[word]
 
-		return self.nonterm.keys()  # TODO: come up with something better if never seen word or its normaisation.
+			pseudo_word = self.normalise(word)
+			if self.have_seen(pseudo_word):
+				return self.word_pos[pseudo_word]
+
+			return self.nonterm.keys()  # TODO: come up with something better if never seen word or its normaisation.
+		else:
+			return []
+
+	def get_unary_rules_for(self, rhs_list):
+		"""
+		Lookup unary rules given the right-hand-side rule
+		:param rhs_list: Ys if the rule is X -> Y
+		:return: set
+		"""
+		out = set()
+		for Y in rhs_list:
+			if Y in self.reverse_unary.keys():
+				for X in self.reverse_unary[Y]:
+					out.add((X, Y))
+		return out
 
 	def have_seen(self, word):
+		""" Have we seen this word/terminal before?
+		:param word: str
+		:return: bool
+		"""
 		return word in self.word_pos.keys()
 
 	def get_binary_by_left_corner(self, Y):
 		if Y in self.reverseN_left_hand_corner:
 			return self.reverseN_left_hand_corner[Y]
 		else:
-			return None
+			return []
 
 	def map_to_pseudo_words(self, freq_threshold=5):
 		""" Map words with a frequency less than the freq_threshold to pseudo-word
 		"""
 		normaised = {}
 		for (X, word), count in self.unary.iteritems():
-			if count < freq_threshold:
+			if not self.is_unary_non_terminal(word) and count < freq_threshold:
 				pseudo = self.normalise(word)
 				normaised.setdefault((X, pseudo), 0)
 				normaised[(X, pseudo)] += count
