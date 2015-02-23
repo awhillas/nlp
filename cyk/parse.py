@@ -25,7 +25,10 @@ class Parse(MachineLearningModule):
 				if len(result) > 0:
 					result_tree = MyTree.from_list(result)
 					result_tree.un_chomsky_normal_form()
-					print result_tree
+					try:
+						print result_tree
+					except:
+						print 'Some Error :('
 					self.results.append(result_tree)
 				else:
 					print "Error parsing sentence :("
