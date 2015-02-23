@@ -9,7 +9,8 @@ __date__ = "$Jan 2015"
 """
 
 import cPickle as pickle
-
+import time
+from datetime import date
 
 class MachineLearningModule:  # Interface.
 	""" Generic interface to all modules in an ML chain/pipeline.
@@ -53,10 +54,14 @@ class MachineLearningModule:  # Interface.
 	def get_save_file_name(self):
 		""" Return a unique filename.
 		"""
-		return self.__class__.__name__ + ".pickle.data"
+		return self.__class__.__name__ + "_data.pickle"
 
 	def get_input_file_name(self):
 		return self.config.get(self.data_id, "training_file")
 
 	def get_output_file_name(self):
-		return self.config.get(self.data_id, "testing_tags_file") + '/' + self.__class__.__name__
+		return self.working_dir() + '/' + self.get_save_file_name()
+
+	def working_dir(self):
+		today = date.fromtimestamp(time.time())
+		return '/'.join([self.config.get(self.data_id, 'output'), today.isoformat(), self.data_id])

@@ -1,8 +1,5 @@
 #! /usr/bin/python
 
-__author__ = "Alexander Whillas <whillas@gmail.com>"
-__date__ = "$Jan 2015"
-
 import sys, ConfigParser, importlib, os, time
 from datetime import date
 
