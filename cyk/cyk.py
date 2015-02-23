@@ -1,5 +1,5 @@
 import operator
-
+from fix_bad_unicode import fix_bad_unicode
 
 class CYK:
 	""" Implementation of the classic CYK parsing algorithm
@@ -21,10 +21,11 @@ class CYK:
 		self.f.close()
 
 	def parse(self, sentence_string, start_pos):
-		return self.cyk(self.chunk(sentence_string), start_pos)
+		cleaned_sentence = self.clean_string(sentence_string)
+		return self.cyk(self.chunk(cleaned_sentence), start_pos)
 
 	def write_file(self, line):
-		self.f.write(line.encode('latin-1')+"\n")
+		self.f.write(line.encode('utf-8')+"\n")
 
 	@staticmethod
 	def chunk(string):
@@ -33,6 +34,12 @@ class CYK:
 			return: array of word strings.
 		"""
 		return string.split()
+
+	@staticmethod
+	def clean_string(string):
+		""" Handle any encoding problems
+		"""
+		return fix_bad_unicode(unicode(string, 'utf-8'))
 
 	def cyk(self, raw_words, start_pos):
 		""" Cocke-Kasami-Younger (CKY) Constituency Parsing
