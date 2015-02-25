@@ -1,6 +1,6 @@
 #! /usr/bin/python
 
-import sys, ConfigParser, importlib, os, time
+import sys, ConfigParser, importlib, time
 from datetime import date
 
 class Experiment:
@@ -25,7 +25,7 @@ class Experiment:
 			if previous_module is None:
 				if not m.input_module is None:
 					previous_module = self.load(m.input_module)
-					previous_module.load(self.working_dir)
+					previous_module.load()
 					print "Loaded: ", previous_module.__class__.__name__
 
 			# Do the work
@@ -34,8 +34,6 @@ class Experiment:
 
 			# Save the run to disk
 			if success:
-				if not os.path.exists(self.working_dir):
-					os.makedirs(self.working_dir)
 				m.save(self.working_dir)
 			else:
 				# Need to pull and error here

@@ -10,6 +10,7 @@ __date__ = "$Jan 2015"
 
 import cPickle as pickle
 import time
+import os
 from datetime import date
 
 class MachineLearningModule:  # Interface.
@@ -38,15 +39,16 @@ class MachineLearningModule:  # Interface.
 		""" Save the output.
 			Ideally so that an run() can be skipped 
 		"""
+		self.check_path(path)
 		f = open(path+'/'+self.get_save_file_name(), 'wb')
 		pickle.dump(self.__dict__, f, 2)
 		f.close()
-	
-	def load(self, path):
+
+	def load(self):
 		""" Load the saved output
 			Instead of of run()?
 		"""
-		data = open(path + '/' + self.get_save_file_name(), 'rb')
+		data = open(self.working_dir() + '/' + self.get_save_file_name(), 'rb')
 		tmp_dict = pickle.load(data)
 		data.close()
 		self.__dict__.update(tmp_dict) 
@@ -62,6 +64,21 @@ class MachineLearningModule:  # Interface.
 	def get_output_file_name(self):
 		return self.working_dir() + '/' + self.get_save_file_name()
 
-	def working_dir(self):
+	def working_dir(self, check=True):
 		today = date.fromtimestamp(time.time())
-		return '/'.join([self.config.get(self.data_id, 'output'), today.isoformat(), self.data_id])
+		path = '/'.join([self.config.get(self.data_id, 'working'), today.isoformat(), self.data_id])
+		if check:
+			self.check_path(path)
+		return path
+
+	def output_dir(self, check=True):
+		today = date.fromtimestamp(time.time())
+		path = '/'.join([self.config.get(self.data_id, 'output'), today.isoformat(), self.data_id])
+		if check:
+			self.check_path(path)
+		return path
+
+	@classmethod
+	def check_path(cls, path):
+		if not os.path.exists(path):
+			os.makedirs(path)
