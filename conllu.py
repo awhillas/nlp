@@ -66,11 +66,8 @@ class ConlluReader(SyntaxCorpusReader):
 
 	def sents_len_counts(self, fileids=None):
 		""" Average sentence length
-		:param fileids: file IDs
-		:return: dict of sentence length counts
-		"""
+s		"""
 		lengths = ()
-
 
 
 class ConlluView(StreamBackedCorpusView):
