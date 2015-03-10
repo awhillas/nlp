@@ -70,7 +70,7 @@ class ConlluReader(SyntaxCorpusReader):
 		:return: dict of sentence length counts
 		"""
 		lengths = ()
-		
+
 
 
 class ConlluView(StreamBackedCorpusView):
