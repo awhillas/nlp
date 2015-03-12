@@ -23,7 +23,7 @@ class PosTest(MachineLearningModule):
 
 		m = Measure()
 		tag_error_count = {}
-		gold_standard = open(self.config.get(self.data_id, "testing_trees"), "rU")
+		gold_standard = open(self.config("testing_trees"), "rU")
 
 		for tree in parser.results:
 			gold_tree = Tree.fromstring(gold_standard.readline())

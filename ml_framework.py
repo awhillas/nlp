@@ -26,8 +26,8 @@ class MachineLearningModule:  # Interface.
 		:param data_set_id: data set ID which should be a group in the .ini file
 		"""
 		self.input_module = None
-		self.config = config
-		self.data_id = data_set_id
+		self._config = config
+		self._data_id = data_set_id
 		print self.__class__
 
 	def run(self, previous):
@@ -59,24 +59,31 @@ class MachineLearningModule:  # Interface.
 		return self.__class__.__name__ + "_data.pickle"
 
 	def get_input_file_name(self):
-		return self.config.get(self.data_id, "training_file")
+		return self.config("training_file")
 
-	def get_output_file_name(self):
+	def get_pickle_file(self):
 		return self.working_dir() + '/' + self.get_save_file_name()
 
 	def working_dir(self, check=True):
 		today = date.fromtimestamp(time.time())
-		path = '/'.join([self.config.get(self.data_id, 'working'), today.isoformat(), self.data_id])
+		path = '/'.join([self.config('working'), today.isoformat(), self._data_id])
 		if check:
 			self.check_path(path)
 		return path
 
 	def output_dir(self, check=True):
 		today = date.fromtimestamp(time.time())
-		path = '/'.join([self.config.get(self.data_id, 'output'), today.isoformat(), self.data_id])
+		path = '/'.join([self.config('output'), today.isoformat(), self._data_id])
 		if check:
 			self.check_path(path)
 		return path
+
+	def config(self, variable):
+		""" Accessor for the config
+		:param variable: section in the ini file
+		:return: str
+		"""
+		return self._config.get(self._data_id, variable)
 
 	@classmethod
 	def check_path(cls, path):

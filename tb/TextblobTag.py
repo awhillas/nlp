@@ -20,15 +20,15 @@ class TextblobTag(MachineLearningModule):
 
 		# Init
 
-		reader = ConlluReader(self.config.get(self.data_id, 'uni_dep_base'), '.*\.conllu')  # Corpus
+		reader = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		tagger = PerceptronTagger(load=False)
-		tagger.load(self.get_output_file_name())
+		tagger.load(loc=self.get_pickle_file())
 
 		# generate tags
-		with open(self.get_output_file_name(), "w") as f:
-			for s in reader.tagged_sents(self.config.get(self.data_id, 'testing_file')):
+		with open(self.config('output_file'), 'w') as f:
+			for s in reader.tagged_sents(self.config('testing_file')):
 				blob = TextBlob(" ".join(s.words()), pos_tagger=tagger)
 				words, tags = zip(*blob.tags)
-				print(" ".join(tags), f)
+				print(" ".join(tags)+"\n", f)
 
 		return True
