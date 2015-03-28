@@ -17,14 +17,15 @@ class TextblobTrain(MachineLearningModule):
 
 		reader = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		sentences = []
-		training_file_ids = [self.config('training_file'), self.config('cross_validation_file')]
+		# Use both cross validation and training sets since we are not tuning model params.
+		training_file_ids = [self.config(i) for i in ['training_file', 'cross_validation_file']]
 		for s in reader.tagged_sents(training_file_ids):
 			sentences.append(zip(*s))
 
 		# Train the model
 
 		pt = PerceptronTagger()
-		pt.train(sentences=sentences, save_loc=self.get_pickle_file())
+		pt.train(sentences=sentences, save_loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		return True
 
@@ -34,5 +35,5 @@ class TextblobTrain(MachineLearningModule):
 
 	def load(self, path):
 		pt = PerceptronTagger()
-		pt.load(self.get_pickle_file())
+		pt.load(self.pickle_file())
 		return pt

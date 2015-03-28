@@ -25,13 +25,22 @@ class TextblobTag(MachineLearningModule):
 
 		reader = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		tagger = PerceptronTagger(load=False)
-		tagger.load(loc=self.get_pickle_file())
+		tagger.load(loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		# generate tags
-		with open(self.config('output_file'), 'w') as f:
-			for s in reader.tagged_sents(self.config('testing_file')):
-				blob = TextBlob(" ".join(s.words()), pos_tagger=tagger)
-				words, tags = zip(*blob.tags)
-				print(" ".join(tags)+"\n", f)
+		with open(self.working_dir()+'/'+self.config('output_file'), 'w') as f1:
+			with open(self.working_dir()+'/'+self.config('gold_output'), 'w') as f2:
+				for s in reader.tagged_sents(self.config('testing_file')):
+					words, gold_tags = zip(*s)
+					print(" ".join(gold_tags), file=f2)
+
+					# Tag the sentenct and save it.
+
+					blob = TextBlob(" ".join(words), pos_tagger=tagger)
+					if len(blob.tags) > 0:
+						_, tags = zip(*blob.tags)
+						print(" ".join(tags), file=f1)
+					else:
+						print("", file=f1)
 
 		return True
