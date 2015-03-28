@@ -1,9 +1,10 @@
-from ml_framework import MachineLearningModule
-from measure import Measure
-from tabulate import tabulate
-from pprint import pprint
 import pandas as pd
 from nltk.tree import Tree
+
+from lib.ml_framework import MachineLearningModule
+from lib.measure import Measure
+from tabulate import tabulate
+
 
 class PosTest(MachineLearningModule):
 

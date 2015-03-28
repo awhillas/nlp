@@ -1,5 +1,7 @@
 import operator
-from fix_bad_unicode import fix_bad_unicode
+
+from lib import fix_bad_unicode
+
 
 class CYK:
 	""" Implementation of the classic CYK parsing algorithm

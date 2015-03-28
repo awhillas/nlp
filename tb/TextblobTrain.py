@@ -1,7 +1,9 @@
-
-from ml_framework import MachineLearningModule
 from textblob_aptagger import PerceptronTagger
-from conllu import ConlluReader
+
+from lib.ml_framework import MachineLearningModule
+
+from lib.conllu import ConlluReader
+
 
 class TextblobTrain(MachineLearningModule):
 	""" Train Textblob Perceptron on our own data so the results are comparable.

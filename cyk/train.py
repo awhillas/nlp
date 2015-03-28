@@ -3,7 +3,7 @@ CYK Training
 """
 
 from Counts import Counts
-from ml_framework import MachineLearningModule
+from lib.ml_framework import MachineLearningModule
 
 
 class Train(MachineLearningModule):

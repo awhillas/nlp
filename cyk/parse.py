@@ -1,8 +1,9 @@
-from ml_framework import MachineLearningModule
+import time
+
+from lib.ml_framework import MachineLearningModule
 from cyk import CYK
 from pcfg import PCFG
 from MyTree import MyTree
-import time
 
 
 class Parse(MachineLearningModule):

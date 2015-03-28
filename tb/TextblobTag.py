@@ -6,10 +6,13 @@
 """
 
 from __future__ import print_function
-from ml_framework import MachineLearningModule
+
 from textblob import TextBlob
 from textblob_aptagger import PerceptronTagger
-from conllu import ConlluReader
+
+from lib.ml_framework import MachineLearningModule
+from lib.conllu import ConlluReader
+
 
 class TextblobTag(MachineLearningModule):
 	def __init__(self, config, data_set_id):
