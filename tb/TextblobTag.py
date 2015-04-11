@@ -34,7 +34,7 @@ class TextblobTag(MachineLearningModule):
 					words, gold_tags = zip(*s)
 					print(" ".join(gold_tags), file=f2)
 
-					# Tag the sentenct and save it.
+					# Tag the sentence and save it.
 
 					blob = TextBlob(" ".join(words), pos_tagger=tagger)
 					if len(blob.tags) > 0:
