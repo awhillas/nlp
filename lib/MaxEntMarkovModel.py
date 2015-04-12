@@ -124,7 +124,13 @@ class MaxEntMarkovModel(SequenceModel):
 					self.learnt_features.setdefault(f, {})
 					self.learnt_features[f].setdefault(label, 0)
 					self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient. See: learn_parameters()
-		self.parameters = SortedDict([((label, feature), 1.0) for feature in self.learnt_features.iterkeys() for label in self.learnt_features[feature].iterkeys()])
+
+		params = []
+		for feature in self.learnt_features.iterkeys():
+			for label in self.learnt_features[feature].iterkeys():
+				params.append((label + '+' + feature, 1.0))
+		self.parameters = SortedDict(params)
+
 		# Learn the model parameters on the cross-validation training set.
 		# try:
 		# 	self.parameters = self.learn_parameters(cross_validation_data)
@@ -168,8 +174,8 @@ class MaxEntMarkovModel(SequenceModel):
 					probs = self.p_all((seq, i), v).iteritems()
 					for feat in self.get_features((words, labels), i):
 						for label in self.tag_count.iterkeys():
-							dV[(label, feat)] += self.learnt_features[feat][label] * probs[feat]
-						dV[(actual_label, feat)] -= self.learnt_features[feat][actual_label]
+							dV[label + '+' + feat] += self.learnt_features[feat][label] * probs[feat]
+						dV[actual_label + '+' + feat] -= self.learnt_features[feat][actual_label]
 				n += 1
 
 			# regularize
@@ -201,7 +207,7 @@ class MaxEntMarkovModel(SequenceModel):
 				# TODO: replace this with the Viterbi or Froward-Backward algorthm
 				probabiities = dict([(label, self.p(label, (words, i), self.parameters)) for label in self.tag_count.keys()])
 
-	def get_features(self, context, i, label):
+	def get_features(self, context, i):
 		""" Get the feature vector for the given context and label and filters out features we haven't seen before.
 		:param x: context tuple of two lists (words, labels)
 		:param i: position in the context we want features for
@@ -209,7 +215,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:return: list of features for the x,y combo
 		"""
 		words, labels = zip(*context)
-		features = self.feature_templates.get(i, (words, labels), label)
+		features = self.feature_templates.get(i, (words, labels))
 		return [f for f in features if f in self.learnt_features]
 
 	def p(self, y, x, v):
@@ -238,7 +244,8 @@ class MaxEntMarkovModel(SequenceModel):
 		for label in self.tag_count.iterkeys():
 			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
 			for feature in self.get_features(context, i):
-				class_probabilities[label] *= exp(v[(label, feature)])  # adding exponents is the same as * them
+				if label + '+' + feature in v:
+					class_probabilities[label] *= exp(v[label + '+' + feature])  # adding exponents is the same as * them
 		return self.normalize(class_probabilities)
 
 	@classmethod
