@@ -2,7 +2,7 @@ __author__ = 'alex'
 
 import re
 import string
-from math import exp, log
+from math import exp, log, fsum
 from collections import defaultdict
 from sortedcontainers import SortedDict  # see http://www.grantjenks.com/docs/sortedcontainers/sorteddict.html
 from scipy.optimize import minimize
@@ -35,13 +35,14 @@ class SequenceFeaturesTemplate():
 	""" Interface to features used in sequencing models like MaxEnt or Log Linear etc
 	"""
 	@classmethod
-	def get(cls, i, context):
+	def get(cls, i, context, label):
 		"""
 		:param i: index into the sequence that we are up to.
 		:param context: sequence context we are labeling i.e. a words+tags in POS tagging for example.
+		:param label: class for the current i'th word
 		:return: list of features present for the i'th position in the sequence, suitable for a hash key.
 		"""
-		raise NotImplementedError( "Should have implemented this" )
+		raise NotImplementedError("Should have implemented this")
 
 
 class WordNormaliser():
@@ -90,7 +91,7 @@ class MaxEntMarkovModel(SequenceModel):
 		What makes it Markov is that the previous two labels are part of the
 		features which are passed on via th context.
 	"""
-	def __init__(self, feature_templates, word_normaliser, regularization_parameter):
+	def __init__(self, data, feature_templates, word_normaliser, regularization_parameter):
 		"""
 		:param feature_templates: Instance of SequenceFeaturesTemplate
 		:param word_normaliser: Instance of WordNormaliser
@@ -99,19 +100,22 @@ class MaxEntMarkovModel(SequenceModel):
 		"""
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
+		self.normalised_data = self.normaliser.all(data)
 		self.regularization_parameter = regularization_parameter
 		self.learnt_features = SortedDict()  # all features
 		self.parameters = SortedDict()  # lambdas aka weights aka model parameters
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 
-	def train(self, data):
+	def train(self, data=None):
 		"""
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: true on success, false otherwise
 		"""
-		self.normalised_data = self.normaliser.all(data)
-		for sentence in self.normalised_data:
+		if data is None:
+			data = self.normalised_data
+
+		for sentence in data:
 			words, labels = zip(*sentence)
 			for i, word in enumerate(words):
 				label = labels[i]
@@ -120,7 +124,7 @@ class MaxEntMarkovModel(SequenceModel):
 					self.learnt_features.setdefault(f, {})
 					self.learnt_features[f].setdefault(label, 0)
 					self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient. See: learn_parameters()
-		self.parameters = SortedDict([(key, 1.0) for key in self.learnt_features.iterkeys()])
+		self.parameters = SortedDict([((label, feature), 1.0) for feature in self.learnt_features.iterkeys() for label in self.learnt_features[feature].iterkeys()])
 		# Learn the model parameters on the cross-validation training set.
 		# try:
 		# 	self.parameters = self.learn_parameters(cross_validation_data)
@@ -129,58 +133,53 @@ class MaxEntMarkovModel(SequenceModel):
 		# 	sys.stderr.write('ERROR: %s\n' % str(err))
 		# 	return False
 
-	def learn_parameters(self, data):
+	def learn_parameters(self, data=None):
 		""" Learn the parameter vector (weights) for the model
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: True on success, False otherwise
 		"""
 		print "Estimating parameters"
-		this = self  # Ol'Javascript trick
+
+		if data is None:
+			data = self.normalised_data
+
 		def objective(x):  # Objective function
-			v = dict(izip(this.parameters.iterkeys(), x))
+			v = dict(izip(self.parameters.iterkeys(), x))
 			out = 0.0
-			for seq in self.normalised_data:
+			for seq in data:
 				for i, (word, label) in enumerate(seq):
-					out += log(this.p(label, (seq, i), v))
-			out += this.regularization(v)
+					out += log(self.p(label, (seq, i), v))
+			out += sum(v.itervalues()) * self.regularization_parameter / 2   # Regularization
 			print "objective: ", out
 			return out
 
-		def gradient(x):  # Inverse (coz we want the max. not min.) of the Gradient of the objective
-			v = dict(izip(this.parameters.iterkeys(), x))  # current param. vector
-			dV = dict.fromkeys(this.parameters.iterkeys(), 0)  # gradient vector output
+		def inverse_gradient(x):
+			""" Inverse (coz we want the max. not min.) of the Gradient of the objective
+			"""
+			v = dict(izip(self.parameters.iterkeys(), x))  # current param. vector
+			dV = dict.fromkeys(self.parameters.iterkeys(), 0.0)  # gradient vector output
 
-			# Empirical counts & regularization
-
-			for f in self.learnt_features:
-				dV[f] = sum(this.learnt_features[f].itervalues()) * -1 + v[f] * this.regularization_parameter
-
-			# Expected counts
-
-			for seq in this.data:
-				for i, (word, label) in enumerate(seq):
-					for k in this.f((seq, i), label):
-						for y in this.learnt_features[k].iterkeys():
-							dV[k] += this.p(y, (seq, i), v)
-			return dV
-
-		def gradient2(x):
-			v = dict(izip(this.parameters.iterkeys(), x))  # current param. vector
-			dV = dict.fromkeys(this.parameters.iterkeys(), 0.0)  # gradient vector output
-
-			for seq in this.data:
-				for i, (word, label) in enumerate(seq):
-					probs = this.p_all((seq, i), v)
-					dV[label] -= 1 if label in probs else 0
-					dV[feat] += sum([p for feat, p in probs])
+			# Predicted counts
+			n = 1
+			for seq in data:
+				print "#", n, " ", n / len(seq), "%"
+				for i, (words, labels) in enumerate(seq):
+					actual_label = labels[i]
+					probs = self.p_all((seq, i), v).iteritems()
+					for feat in self.get_features((words, labels), i):
+						for label in self.tag_count.iterkeys():
+							dV[(label, feat)] += self.learnt_features[feat][label] * probs[feat]
+						dV[(actual_label, feat)] -= self.learnt_features[feat][actual_label]
+				n += 1
 
 			# regularize
+
 			for feat, value in v:
 				dV[feat] += v[feat] * self.regularization_parameter
 
 			return dV
 
-		result = minimize(fun=lambda x: -objective(x), jac=lambda x: gradient2(x), x0=self.parameters.values(), method='L-BFGS-B')  # Maximise, actually
+		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B')  # Maximise, actually
 
 		if result.success:
 			# return result.x
@@ -190,15 +189,8 @@ class MaxEntMarkovModel(SequenceModel):
 			raise RuntimeError('Error learning parameters: ' + result.message)
 			return False
 
-	def regularization(self, v):
-		"""
-		:param v: parameter vector
-		:return: the regularization value for the given param. vector.
-		"""
-		return sum(v.itervalues()) * self.regularization_parameter / 2
-
 	def label(self, sequences):
-		""" Calls the Viterbi algorithm to label each sentence in the input sequence
+		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
 		:param sequences: List of sentences, which are lists of words.
 		:return: List if labeled sentences: lists of (word, tag) tuple pairs.
 		"""
@@ -207,26 +199,18 @@ class MaxEntMarkovModel(SequenceModel):
 			#wordz = self.normaliser.sentence(words)
 			for i, word in enumerate(words):
 				# TODO: replace this with the Viterbi or Froward-Backward algorthm
-				probabiities = dict([(label, self.p(label, (wordz, i), self.parameters)) for label in self.tag_count.keys()])
+				probabiities = dict([(label, self.p(label, (words, i), self.parameters)) for label in self.tag_count.keys()])
 
-	def get_features(self, context, i):
-		""" Get the feature vector for the given context and label
+	def get_features(self, context, i, label):
+		""" Get the feature vector for the given context and label and filters out features we haven't seen before.
 		:param x: context tuple of two lists (words, labels)
 		:param i: position in the context we want features for
+		:param label: target class/label/tag
 		:return: list of features for the x,y combo
 		"""
 		words, labels = zip(*context)
-		features = self.feature_templates.get(i, (words, labels))
+		features = self.feature_templates.get(i, (words, labels), label)
 		return [f for f in features if f in self.learnt_features]
-
-	def v_dot_f(self, x, y, v):
-		""" Dot or inner product of feature vector and the given parameter vector
-		:param x: tuple of (context, i) where i is the current position in the context
-		:param y: label
-		:param v: parameter vector dict with feature as keys and float values.
-		:return: float
-		"""
-		return sum(v[feature] for feature in self.f(x, y) if feature in v)
 
 	def p(self, y, x, v):
 		""" Conditional probability of label y give the context x and parameters v
@@ -242,24 +226,31 @@ class MaxEntMarkovModel(SequenceModel):
 			return 0.0
 
 	def p_all(self, x, v):
-		""" Get all the probability for all the labels in the given context
+		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
+			sentence/sequence with a given feature.
+			aka The Soft Max function
 		:param x: tuple of (context, i) where i is the current position in the context
 		:param v: parameter vector dict with feature as keys and float values.
-		:return: float
+		:return: dict. of class->float
 		"""
-		context, i  = x
-		out = {}
-		features = self.get_features(context, i)
-		for f in features:
-			for label in self.tag_count.iterkeys():
-				
+		context, i = x
+		class_probabilities = dict()
+		for label in self.tag_count.iterkeys():
+			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
+			for feature in self.get_features(context, i):
+				class_probabilities[label] *= exp(v[(label, feature)])  # adding exponents is the same as * them
+		return self.normalize(class_probabilities)
 
-		values = dict([(feat, exp(v[feat])) for feat in features if feat in v])  # v . f(x, y)
-		norm = sum( vf for vf in values ) + len(self.tag_count)  # normilisation = present_features + e^0 * #other_features.
-		return dict([(feat, vf / norm) for feat, vf in values])
-
-	def log_p_all(self, x, y, v):
-
+	@classmethod
+	def normalize(cls, d, target=1.0):
+		""" Make all the values add to target
+		:param d: dict
+		:param target: target sum, defaults to 1.0
+		:return: dict
+		"""
+		raw = fsum(d.itervalues())
+		factor = target/raw
+		return {key: value * factor for key, value in d.iteritems()}
 
 	def add_tag(self, w, t):
 		""" Keep track of words and their tags
@@ -390,7 +381,7 @@ class HonibbalsFeats(SequenceFeaturesTemplate):
 
 		if i >= 1:
 			add('i-1 word', words[i-1])
-			add('i-1 suffix', words[i-1][-3:])	# TODO: better suffixes
+			add('i-1 suffix', words[i-1][-3:])  # TODO: better suffixes
 			add('i-1 tag', tags[-1])
 			add('i-1 tag+i word', tags[i-1], words[i])
 		else:
