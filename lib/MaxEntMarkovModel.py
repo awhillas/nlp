@@ -168,14 +168,16 @@ class MaxEntMarkovModel(SequenceModel):
 			# Predicted counts
 			n = 1
 			for seq in data:
-				print "#", n, " ", n / len(seq), "%"
-				for i, (words, labels) in enumerate(seq):
+				print "#", n, n / len(seq), "%"
+				for i, (words, labels) in enumerate(zip(*seq)):
 					actual_label = labels[i]
-					probs = self.p_all((seq, i), v).iteritems()
+					probs = self.p_all((seq, i), v)
 					for feat in self.get_features((words, labels), i):
 						for label in self.tag_count.iterkeys():
-							dV[label + '+' + feat] += self.learnt_features[feat][label] * probs[feat]
-						dV[actual_label + '+' + feat] -= self.learnt_features[feat][actual_label]
+							if label in self.learnt_features[feat] and label + '+' + feat in dV:
+								dV[label + '+' + feat] += self.learnt_features[feat][label] * probs[label]
+						if actual_label in self.learnt_features[feat] and actual_label + '+' + feat in dV:
+							dV[actual_label + '+' + feat] -= self.learnt_features[feat][actual_label]
 				n += 1
 
 			# regularize

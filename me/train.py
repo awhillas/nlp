@@ -13,7 +13,7 @@ class Train(MachineLearningModule):
 		MachineLearningModule.__init__(self, config, data_set_id)
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		# data_file = self.config('training_file')
-		data_file = self.config('cross_validation_file')  # use smaller set for development
+		data_file = self.config('tiny_file')  # use smaller set for development
 		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonibbalsFeats, CollinsNormalisation, 0.5)
 
 	def run(self, _):
