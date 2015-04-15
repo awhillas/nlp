@@ -1,4 +1,5 @@
 .DS_Store
+*.profile
 
 # cProfile dumps
 dump.cprofile

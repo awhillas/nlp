@@ -14,7 +14,7 @@ class Train(MachineLearningModule):
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		# data_file = self.config('training_file')
 		data_file = self.config('training_file')  # use smaller set for development
-		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonibbalsFeats, CollinsNormalisation, 0.5)
+		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonibbalsFeats, CollinsNormalisation, 0.1)
 
 	def run(self, _):
 		# Training
