@@ -102,7 +102,8 @@ class MaxEntMarkovModel(SequenceModel):
 		self.normaliser = word_normaliser
 		self.normalised_data = self.normaliser.all(data)
 		self.regularization_parameter = regularization_parameter
-		self.learnt_features = SortedDict()  # all features
+		self.learnt_features = SortedDict()  # all features broken down into counts for each label
+		self.learnt_features_full = SortedDict()  # full features including labels
 		self.parameters = SortedDict()  # lambdas aka weights aka model parameters
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
@@ -116,28 +117,18 @@ class MaxEntMarkovModel(SequenceModel):
 			data = self.normalised_data
 
 		for sentence in data:
-			words, labels = zip(*sentence)
-			for i, word in enumerate(words):
-				label = labels[i]
+			context = Context(sentence, self.feature_templates)
+			for i, word in enumerate(context.words):
+				label = context.labels[i]
 				self.add_tag(word, label)
-				for f in self.feature_templates.get(i, (words, labels)):
+				for f in context.features[i]:
 					self.learnt_features.setdefault(f, {})
 					self.learnt_features[f].setdefault(label, 0)
 					self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient. See: learn_parameters()
-
-		params = []
-		for feature in self.learnt_features.iterkeys():
-			for label in self.learnt_features[feature].iterkeys():
-				params.append((label + '+' + feature, 1.0))
-		self.parameters = SortedDict(params)
-
-		# Learn the model parameters on the cross-validation training set.
-		# try:
-		# 	self.parameters = self.learn_parameters(cross_validation_data)
-		# 	return True
-		# except Exception, err:
-		# 	sys.stderr.write('ERROR: %s\n' % str(err))
-		# 	return False
+				for f in context.get_features(i, label):
+					self.learnt_features_full.setdefault(f, 0)
+					self.learnt_features_full[f] += 1
+					self.parameters.setdefault(f, 1.0)  # initial default to 1.0
 
 	def learn_parameters(self, data=None):
 		""" Learn the parameter vector (weights) for the model
@@ -151,13 +142,17 @@ class MaxEntMarkovModel(SequenceModel):
 
 		def objective(x):  # Objective function
 			v = dict(izip(self.parameters.iterkeys(), x))
-			out = 0.0
+			log_p = 0.0
 			for seq in data:
 				for i, (word, label) in enumerate(seq):
-					out += log(self.p(label, (seq, i), v))
-			out += sum(v.itervalues()) * self.regularization_parameter / 2   # Regularization
-			print "objective: ", out
-			return out
+					probabilities = self.probabilities(i, Context(seq, self.feature_templates), v)
+					log_p += log(probabilities[label])
+
+			# Regularization
+			regulatiser = sum([ param * param for param in v.itervalues() ]) * self.regularization_parameter / 2
+
+			print "objective: ", log_p - regulatiser
+			return log_p - regulatiser
 
 		def inverse_gradient(x):
 			""" Inverse (coz we want the max. not min.) of the Gradient of the objective
@@ -166,26 +161,28 @@ class MaxEntMarkovModel(SequenceModel):
 			dV = dict.fromkeys(self.parameters.iterkeys(), 0.0)  # gradient vector output
 
 			# Predicted counts
-			n = 1
-			for seq in data:
-				print "#", n, n / len(seq), "%"
-				for i, (words, labels) in enumerate(zip(*seq)):
-					actual_label = labels[i]
-					probs = self.p_all((seq, i), v)
-					for feat in self.get_features((words, labels), i):
-						for label in self.tag_count.iterkeys():
-							if label in self.learnt_features[feat] and label + '+' + feat in dV:
-								dV[label + '+' + feat] += self.learnt_features[feat][label] * probs[label]
-						if actual_label in self.learnt_features[feat] and actual_label + '+' + feat in dV:
-							dV[actual_label + '+' + feat] -= self.learnt_features[feat][actual_label]
-				n += 1
 
-			# regularize
+			for n, seq in enumerate(data):
+				print "#", n, float(n) / len(data) * 100, "%"
+				context = Context(seq, self.feature_templates)
 
-			for feat, value in v:
-				dV[feat] += v[feat] * self.regularization_parameter
+				for i, (word, gold_label) in enumerate(seq):
+					probabilities = self.probabilities(i, context, v)
 
-			return dV
+					# Expected/predicted feature counts
+
+					for label in self.tag_count.iterkeys():
+						for feature in context.get_features(i, label):
+							if feature in v:
+								dV[feature] += probabilities[label]
+
+			# Actual feature counts + regularize
+
+			for f, count in self.learnt_features_full.iteritems():
+				dV[f] -= count
+				dV[f] += v[f] * self.regularization_parameter
+
+			return dV.values()
 
 		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B')  # Maximise, actually
 
@@ -209,45 +206,21 @@ class MaxEntMarkovModel(SequenceModel):
 				# TODO: replace this with the Viterbi or Froward-Backward algorthm
 				probabiities = dict([(label, self.p(label, (words, i), self.parameters)) for label in self.tag_count.keys()])
 
-	def get_features(self, context, i):
-		""" Get the feature vector for the given context and label and filters out features we haven't seen before.
-		:param x: context tuple of two lists (words, labels)
-		:param i: position in the context we want features for
-		:param label: target class/label/tag
-		:return: list of features for the x,y combo
-		"""
-		words, labels = zip(*context)
-		features = self.feature_templates.get(i, (words, labels))
-		return [f for f in features if f in self.learnt_features]
-
-	def p(self, y, x, v):
-		""" Conditional probability of label y give the context x and parameters v
-		:param y: label we want the probability for
-		:param x: tuple of (context, i) where i is the current position in the context
-		:param v: parameter vector dict with feature as keys and float values.
-		:return: float
-		"""
-		probs = self.p_all(x, v)  # Probabilities for all features
-		if y in probs:
-			return probs[y]
-		else:
-			return 0.0
-
-	def p_all(self, x, v):
+	def probabilities(self, i, context, v):
 		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
 			sentence/sequence with a given feature.
 			aka The Soft Max function
-		:param x: tuple of (context, i) where i is the current position in the context
-		:param v: parameter vector dict with feature as keys and float values.
+		:param i: int. position in the context
+		:param context: Context object.
+		:param v: dict. parameter weight vector for each feature
 		:return: dict. of class->float
 		"""
-		context, i = x
 		class_probabilities = dict()
 		for label in self.tag_count.iterkeys():
 			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
-			for feature in self.get_features(context, i):
-				if label + '+' + feature in v:
-					class_probabilities[label] *= exp(v[label + '+' + feature])  # adding exponents is the same as * them
+			for feature in context.get_features(i, label):
+				if feature in v:
+					class_probabilities[label] *= exp(v[feature])  # adding exponents is the same as * them
 		return self.normalize(class_probabilities)
 
 	@classmethod
@@ -372,10 +345,12 @@ class HonibbalsFeats(SequenceFeaturesTemplate):
 	"""
 	@classmethod
 	def get(cls, i, context):
-		'''Map tokens into a feature representation, implemented as a
+		"""Map tokens into a feature representation, implemented as a
 		{hashable: float} dict. If the features change, a new model must be
 		trained.
-		'''
+		:param i: position in the context
+		:param context: tuple of (words, labels)
+		"""
 		def add(name, *args):
 			features.append(' '.join((name,) + tuple(args)))
 
@@ -414,6 +389,17 @@ class HonibbalsFeats(SequenceFeaturesTemplate):
 
 		return features
 
+class Context():
+	"""
+	The main idea of this class is to reduce the number of times feature_templates.get() and zip(*sequence) are called.
+	"""
+	def __init__(self, sequence, feature_templates):
+		self.sequence = sequence
+		self.words, self.labels = zip(*sequence)
+		self.features = [[f for f in feature_templates.get(i, (self.words, self.labels))] for i, _ in enumerate(sequence)]
+
+	def get_features(self, i, label):
+		return [ f + " " + label for f in self.features[i] ]  # merge the feature set with the label
 
 class Viterbi():
 	@classmethod
