@@ -7,39 +7,46 @@ from collections import defaultdict
 from sortedcontainers import SortedDict  # see http://www.grantjenks.com/docs/sortedcontainers/sorteddict.html
 from scipy.optimize import minimize
 from itertools import izip
+from scipy import array
 
 # Interfaces
-#  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 
 class SequenceModel():
 	""" Model for machine learning models
 	"""
 
+	def __init__(self):
+		pass
+
 	def train(self, data):
 		""" Train the model from a corpus.
 		:param data: Expect an object with an interface of CorpusReader from the NLTK
-		:param features: SequenceFeaturesTemplate class
 		:return: A model that can be passed to the label method
 		"""
-		raise NotImplementedError( "Should have implemented this" )
+		raise NotImplementedError("Should have implemented this")
 
 	def label(self, sequences):
 		""" Predict labels for the list of sentences
 		:param sequences: list of sentences which are lists of words.
 		:return: labeled sentences which are lists of (word, label) tuples
 		"""
-		raise NotImplementedError( "Should have implemented this" )
+		raise NotImplementedError("Should have implemented this")
 
 
 class SequenceFeaturesTemplate():
 	""" Interface to features used in sequencing models like MaxEnt or Log Linear etc
 	"""
+
+	def __init__(self):
+		pass
+
 	@classmethod
-	def get(cls, i, context, label):
+	def get(cls, i, context):
 		"""
 		:param i: index into the sequence that we are up to.
 		:param context: sequence context we are labeling i.e. a words+tags in POS tagging for example.
-		:param label: class for the current i'th word
 		:return: list of features present for the i'th position in the sequence, suitable for a hash key.
 		"""
 		raise NotImplementedError("Should have implemented this")
@@ -49,6 +56,9 @@ class WordNormaliser():
 	"""
 	Handles normalisation of words. Used to close vocabulary.
 	"""
+
+	def __init__(self):
+		pass
 
 	@classmethod
 	def all(cls, data):
@@ -73,17 +83,17 @@ class WordNormaliser():
 		:param word: A word
 		:return: Normalised word.
 		"""
-		raise NotImplementedError( "Should have implemented this" )
+		raise NotImplementedError("Should have implemented this")
 
 
 # Implementations
 #  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
-class LogLinearModel(SequenceModel):
-	""" aka Maximum Entropy Model
-		TODO: implement for comparison purposes.
-	"""
+# class LogLinearModel(SequenceModel):
+# 	""" aka Maximum Entropy Model
+# 		TODO: implement for comparison purposes.
+# 	"""
 
 
 class MaxEntMarkovModel(SequenceModel):
@@ -91,7 +101,8 @@ class MaxEntMarkovModel(SequenceModel):
 		What makes it Markov is that the previous two labels are part of the
 		features which are passed on via th context.
 	"""
-	def __init__(self, data, feature_templates, word_normaliser, regularization_parameter):
+
+	def __init__(self, data, feature_templates, word_normaliser, regularization_parameter=0.5):
 		"""
 		:param feature_templates: Instance of SequenceFeaturesTemplate
 		:param word_normaliser: Instance of WordNormaliser
@@ -124,7 +135,8 @@ class MaxEntMarkovModel(SequenceModel):
 				for f in context.features[i]:
 					self.learnt_features.setdefault(f, {})
 					self.learnt_features[f].setdefault(label, 0)
-					self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient. See: learn_parameters()
+					self.learnt_features[f][
+						label] += 1  # Keep counts of features by tag for gradient. See: learn_parameters()
 				for f in context.get_features(i, label):
 					self.learnt_features_full.setdefault(f, 0)
 					self.learnt_features_full[f] += 1
@@ -149,9 +161,9 @@ class MaxEntMarkovModel(SequenceModel):
 					log_p += log(probabilities[label])
 
 			# Regularization
-			regulatiser = sum([ param * param for param in v.itervalues() ]) * self.regularization_parameter / 2
+			regulatiser = sum([param * param for param in v.itervalues()]) * self.regularization_parameter / 2
 
-			print "objective: ", log_p - regulatiser
+			print log_p, regulatiser, log_p - regulatiser
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
@@ -163,10 +175,10 @@ class MaxEntMarkovModel(SequenceModel):
 			# Predicted counts
 
 			for n, seq in enumerate(data):
-				print "#", n, float(n) / len(data) * 100, "%"
+				print "#", n, (float(n) + 1) / len(data) * 100, "%"
 				context = Context(seq, self.feature_templates)
 
-				for i, (word, gold_label) in enumerate(seq):
+				for i, _ in enumerate(seq):
 					probabilities = self.probabilities(i, context, v)
 
 					# Expected/predicted feature counts
@@ -174,6 +186,7 @@ class MaxEntMarkovModel(SequenceModel):
 					for label in self.tag_count.iterkeys():
 						for feature in context.get_features(i, label):
 							if feature in v:
+								# print "dV[", feature, "] += ", probabilities[label]
 								dV[feature] += probabilities[label]
 
 			# Actual feature counts + regularize
@@ -182,9 +195,9 @@ class MaxEntMarkovModel(SequenceModel):
 				dV[f] -= count
 				dV[f] += v[f] * self.regularization_parameter
 
-			return dV.values()
+			return array(dV.values())
 
-		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B')  # Maximise, actually
+		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B', options={'maxiter': 20})  # Maximise, actually
 
 		if result.success:
 			# return result.x
@@ -192,7 +205,6 @@ class MaxEntMarkovModel(SequenceModel):
 			return True
 		else:
 			raise RuntimeError('Error learning parameters: ' + result.message)
-			return False
 
 	def label(self, sequences):
 		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
@@ -201,7 +213,6 @@ class MaxEntMarkovModel(SequenceModel):
 		"""
 		for sentence in input:
 			words, tags = zip(*sentence)
-			#wordz = self.normaliser.sentence(words)
 			for i, word in enumerate(words):
 				# TODO: replace this with the Viterbi or Froward-Backward algorthm
 				probabiities = dict([(label, self.p(label, (words, i), self.parameters)) for label in self.tag_count.keys()])
@@ -231,7 +242,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:return: dict
 		"""
 		raw = fsum(d.itervalues())
-		factor = target/raw
+		factor = target / raw
 		return {key: value * factor for key, value in d.iteritems()}
 
 	def add_tag(self, w, t):
@@ -249,6 +260,7 @@ class CollinsNormalisation(WordNormaliser):
 	""" Normalisations taken from Michel Collins notes
 		'Chapter 2: Tagging problems and Hidden Markov models'
 	"""
+
 	@classmethod
 	def word(cls, word):
 		# return cls.pseudo_map_digits(word)
@@ -261,25 +273,22 @@ class CollinsNormalisation(WordNormaliser):
 	@classmethod
 	def junk(cls, word):
 		if len(word) > 1 \
-				and not "'" in word \
-				and not '-' in word\
+				and "'" not in word \
+				and '-' not in word \
 				and not word[-1] == '.':
 			if word.count('@') == 1:  # poor mans email spotter
-				# print '!emailAddress: ', word
 				return '!emailAddress'
 			elif word.lower().startswith('http') \
-					or word.lower().startswith('www.')\
-					or word.lower().endswith('.com'): # poormans URL
-				# print '!url: ', word
+					or word.lower().startswith('www.') \
+					or word.lower().endswith('.com'):  # poor mans URL
 				return '!url'
 			elif all(i in string.punctuation for i in word):
 				# TODO: handle smiles
-				#print '!allPunctuation', word
 				return '!allPunctuation'
 			elif not all(i in string.letters for i in word):
 				# TODO: handle URLs
 				# TODO: email addresses
-				# TODO hable initials
+				# TODO: handle initials
 				# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
 				# print '!mixedUp', word
 				return '!mixedUp'
@@ -293,6 +302,7 @@ class CollinsNormalisation(WordNormaliser):
 			:rtype: str
 		"""
 		_digits = re.compile('\d')
+
 		def contains_digits(d):
 			return bool(_digits.search(d))
 
@@ -332,17 +342,18 @@ class CollinsNormalisation(WordNormaliser):
 			return '!allCaps'
 
 		if word.istitle():
-			return '!initCap'   # TODO: should distinguish between words at beginning of sentence?
+			return '!initCap'  # TODO: should distinguish between words at beginning of sentence?
 
 		if word.islower():
 			return '!lowercase'
 
-		return "!other"     # weird punctuation etc
+		return "!other"  # weird punctuation etc
 
 
 class HonibbalsFeats(SequenceFeaturesTemplate):
 	""" Features nicked from Mathew Honnibal's PerceptronTagger for TextBlob
 	"""
+
 	@classmethod
 	def get(cls, i, context):
 		"""Map tokens into a feature representation, implemented as a
@@ -351,6 +362,7 @@ class HonibbalsFeats(SequenceFeaturesTemplate):
 		:param i: position in the context
 		:param context: tuple of (words, labels)
 		"""
+
 		def add(name, *args):
 			features.append(' '.join((name,) + tuple(args)))
 
@@ -364,42 +376,45 @@ class HonibbalsFeats(SequenceFeaturesTemplate):
 		add('i pref1', words[i][0])
 
 		if i >= 1:
-			add('i-1 word', words[i-1])
-			add('i-1 suffix', words[i-1][-3:])  # TODO: better suffixes
+			add('i-1 word', words[i - 1])
+			add('i-1 suffix', words[i - 1][-3:])  # TODO: better suffixes
 			add('i-1 tag', tags[-1])
-			add('i-1 tag+i word', tags[i-1], words[i])
+			add('i-1 tag+i word', tags[i - 1], words[i])
 		else:
 			add('i-1 tag', '*')
 			add('i-1 tag+i word', '*', words[i])
 
 		if i >= 2:
-			add('i-2 word', words[i-2])
-			add('i-2 tag', tags[i-2])
-			add('i tag+i-2 tag', tags[i-1], tags[i-2])
+			add('i-2 word', words[i - 2])
+			add('i-2 tag', tags[i - 2])
+			add('i tag+i-2 tag', tags[i - 1], tags[i - 2])
 		else:
 			add('i-2 tag', '**')
 			add('i tag+i-2 tag', '*', '**')
 
-		if i+1 < len(words):
-			add('i+1 word', words[i+1])
-			add('i+1 suffix', words[i+1][-3:])
+		if i + 1 < len(words):
+			add('i+1 word', words[i + 1])
+			add('i+1 suffix', words[i + 1][-3:])
 
-		if i+2 < len(words):
-			add('i+2 word', words[i+2])
+		if i + 2 < len(words):
+			add('i+2 word', words[i + 2])
 
 		return features
+
 
 class Context():
 	"""
 	The main idea of this class is to reduce the number of times feature_templates.get() and zip(*sequence) are called.
 	"""
+
 	def __init__(self, sequence, feature_templates):
 		self.sequence = sequence
 		self.words, self.labels = zip(*sequence)
 		self.features = [[f for f in feature_templates.get(i, (self.words, self.labels))] for i, _ in enumerate(sequence)]
 
 	def get_features(self, i, label):
-		return [ f + " " + label for f in self.features[i] ]  # merge the feature set with the label
+		return [f + " " + label for f in self.features[i]]  # merge the feature set with the label
+
 
 class Viterbi():
 	@classmethod
@@ -429,7 +444,7 @@ class Viterbi():
 			newpath = {}
 
 			for y in states:
-				(prob, state) = max((V[t-1][y0] * trans_p[y0][y] * emit_p[y][obs[t]], y0) for y0 in states)
+				(prob, state) = max((V[t - 1][y0] * trans_p[y0][y] * emit_p[y][obs[t]], y0) for y0 in states)
 				V[t][y] = prob
 				newpath[y] = path[state] + [y]
 
