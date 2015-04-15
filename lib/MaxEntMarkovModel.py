@@ -153,7 +153,7 @@ class MaxEntMarkovModel(SequenceModel):
 			data = self.normalised_data
 
 		def objective(x):  # Objective function
-			v = dict(izip(self.parameters.iterkeys(), x))
+			v = SortedDict(izip(self.parameters.iterkeys(), x))
 			log_p = 0.0
 			for seq in data:
 				for i, (word, label) in enumerate(seq):
@@ -161,7 +161,7 @@ class MaxEntMarkovModel(SequenceModel):
 					log_p += log(probabilities[label])
 
 			# Regularization
-			regulatiser = sum([param * param for param in v.itervalues()]) * self.regularization_parameter / 2
+			regulatiser = sum([param * param for param in v.itervalues()]) * (self.regularization_parameter / 2)
 
 			print log_p, regulatiser, log_p - regulatiser
 			return log_p - regulatiser
@@ -169,13 +169,13 @@ class MaxEntMarkovModel(SequenceModel):
 		def inverse_gradient(x):
 			""" Inverse (coz we want the max. not min.) of the Gradient of the objective
 			"""
-			v = dict(izip(self.parameters.iterkeys(), x))  # current param. vector
-			dV = dict.fromkeys(self.parameters.iterkeys(), 0.0)  # gradient vector output
+			v = SortedDict(izip(self.parameters.iterkeys(), x))  # current param. vector
+			dV = SortedDict.fromkeys(self.parameters.iterkeys(), 0.0)  # gradient vector output
 
 			# Predicted counts
 
 			for n, seq in enumerate(data):
-				print "#", n, (float(n) + 1) / len(data) * 100, "%"
+				# print "#", n, (float(n) + 1) / len(data) * 100, "%"
 				context = Context(seq, self.feature_templates)
 
 				for i, _ in enumerate(seq):
@@ -199,12 +199,14 @@ class MaxEntMarkovModel(SequenceModel):
 
 		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B', options={'maxiter': 20})  # Maximise, actually
 
+		self.parameters = result.x
 		if result.success:
 			# return result.x
-			self.parameters = result.x
 			return True
 		else:
-			raise RuntimeError('Error learning parameters: ' + result.message)
+			# raise RuntimeError('Error learning parameters: ' + result.message)
+			print 'Error learning parameters: ' + result.message
+			return True
 
 	def label(self, sequences):
 		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
