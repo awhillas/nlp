@@ -142,7 +142,7 @@ class MaxEntMarkovModel(SequenceModel):
 					self.learnt_features_full[f] += 1
 					self.parameters.setdefault(f, 1.0)  # initial default to 1.0
 
-	def learn_parameters(self, data=None):
+	def learn_parameters(self, data=None, maxiter=20):
 		""" Learn the parameter vector (weights) for the model
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: True on success, False otherwise
@@ -172,7 +172,7 @@ class MaxEntMarkovModel(SequenceModel):
 			v = SortedDict(izip(self.parameters.iterkeys(), x))  # current param. vector
 			dV = SortedDict.fromkeys(self.parameters.iterkeys(), 0.0)  # gradient vector output
 
-			# Predicted counts
+			# Expected/predicted feature counts
 
 			for n, seq in enumerate(data):
 				# print "#", n, (float(n) + 1) / len(data) * 100, "%"
@@ -180,8 +180,6 @@ class MaxEntMarkovModel(SequenceModel):
 
 				for i, _ in enumerate(seq):
 					probabilities = self.probabilities(i, context, v)
-
-					# Expected/predicted feature counts
 
 					for label in self.tag_count.iterkeys():
 						for feature in context.get_features(i, label):
@@ -197,7 +195,8 @@ class MaxEntMarkovModel(SequenceModel):
 
 			return array(dV.values())
 
-		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B', options={'maxiter': 20})  # Maximise, actually
+		# Maximise, actually.
+		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B', options={'maxiter': maxiter})
 
 		self.parameters = result.x
 		if result.success:
@@ -213,11 +212,16 @@ class MaxEntMarkovModel(SequenceModel):
 		:param sequences: List of sentences, which are lists of words.
 		:return: List if labeled sentences: lists of (word, tag) tuple pairs.
 		"""
-		for sentence in input:
-			words, tags = zip(*sentence)
-			for i, word in enumerate(words):
+		out = []
+		for sentence in sequences:
+			tags = [None] * len(sentence)
+			for i, word in enumerate(sentence):
+				context = Context(zip(sentence, tags), self.feature_templates)
 				# TODO: replace this with the Viterbi or Froward-Backward algorthm
-				probabiities = dict([(label, self.p(label, (words, i), self.parameters)) for label in self.tag_count.keys()])
+				probs = self.probabilities(i, context, self.parameters)
+				tags[i] = max(probs.iterkeys(), key=lambda key: probs[key])
+			out.append(zip(sentence, tags))
+		return out
 
 	def probabilities(self, i, context, v):
 		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
