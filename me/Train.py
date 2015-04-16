@@ -35,7 +35,7 @@ class Train(MachineLearningModule):
 
 		for _ in range(10):
 			result = self.model.learn_parameters(maxiter=10)
-			self.save(filename_prefix='_params')
+			self.save()
 
 		# TODO: Use cross-validation set to tune the regularization param.
 

@@ -198,13 +198,13 @@ class MaxEntMarkovModel(SequenceModel):
 		# Maximise, actually.
 		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B', options={'maxiter': maxiter})
 
-		self.parameters = result.x
+		self.parameters = SortedDict(izip(self.learnt_features_full.iterkeys(), result.x.tolist()))
 		if result.success:
 			# return result.x
 			return True
 		else:
 			# raise RuntimeError('Error learning parameters: ' + result.message)
-			print 'Error learning parameters: ' + result.message
+			print result.message
 			return True
 
 	def label(self, sequences):
