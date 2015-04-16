@@ -33,9 +33,8 @@ class Train(MachineLearningModule):
 		if os.path.isfile(saved_features):
 			self.load(filename_prefix='_features')
 
-		if self.model.learn_parameters():
-			self.save()
+		result = self.model.learn_parameters()
 
-		# Use cross-validation set to tune the regularization param.
+		# TODO: Use cross-validation set to tune the regularization param.
 
-		return True
+		return result
