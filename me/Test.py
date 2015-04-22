@@ -8,4 +8,3 @@ class Test(MachineLearningModule):
 		predicted = tagger.labeled_sequences
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		gold = data.tagged_sents(self.config('testing_file'))
-

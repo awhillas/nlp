@@ -4,7 +4,6 @@ MaxEnt Markov Model training
 
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
-from lib.MaxEntMarkovModel import MaxEntMarkovModel, HonibbalsFeats
 
 class Predict(MachineLearningModule):
 	def __init__(self, config, data_set_id):

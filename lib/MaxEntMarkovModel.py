@@ -116,6 +116,7 @@ class MaxEntMarkovModel(SequenceModel):
 		self.learnt_features = SortedDict()  # all features broken down into counts for each label
 		self.learnt_features_full = SortedDict()  # full features including labels
 		self.parameters = SortedDict()  # lambdas aka weights aka model parameters
+		self.total = 0  # Total words seen in training corpus
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 
@@ -135,8 +136,7 @@ class MaxEntMarkovModel(SequenceModel):
 				for f in context.features[i]:
 					self.learnt_features.setdefault(f, {})
 					self.learnt_features[f].setdefault(label, 0)
-					self.learnt_features[f][
-						label] += 1  # Keep counts of features by tag for gradient. See: learn_parameters()
+					self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient.
 				for f in context.get_features(i, label):
 					self.learnt_features_full.setdefault(f, 0)
 					self.learnt_features_full[f] += 1
@@ -256,6 +256,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:param w: word
 		:param t: tag/label
 		"""
+		self.total += 1
 		self.tag_count.setdefault(t, 0)
 		self.tag_count[t] += 1
 		self.word_tag_count.setdefault(w, defaultdict(int))
