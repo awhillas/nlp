@@ -33,7 +33,8 @@ class Train(MachineLearningModule):
 		if os.path.isfile(saved_features):
 			self.load(filename_prefix='_features')
 
-		for _ in range(10):
+		for i in range(10):
+			print "Iteration set #", i
 			result = self.model.learn_parameters(maxiter=10)
 			self.save()
 
