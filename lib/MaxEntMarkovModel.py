@@ -422,6 +422,77 @@ class Context():
 	def get_features(self, i, label):
 		return [f + " " + label for f in self.features[i]]  # merge the feature set with the label
 
+class ForwardBackward():
+
+	@classmethod
+	def fwd_bkw(cls, seq, states, start, t, e, end_st):
+		"""
+		:param seq: input (observation) sequence (sentence)
+		:param states: states
+		:param start: start probability
+		:param t: transition probability
+		:param e: emission probability
+		:param end_st: end state
+		:return:
+		"""
+		L = len(seq)
+
+		fwd = []
+		f_prev = {}
+		# forward part of the algorithm
+		for i, x_i in enumerate(seq):
+			f_curr = {}
+			for st in states:
+				if i == 0:
+					# base case for the forward part
+					prev_f_sum = start[st]
+				else:
+					prev_f_sum = sum(f_prev[k] * t[k][st] for k in states)
+
+				f_curr[st] = e[st][x_i] * prev_f_sum
+
+			# normalise
+			sum_prob = sum(f_curr.values())
+			for st in states:
+				f_curr[st] /= sum_prob  # normalising to make sum == 1
+
+			# iterate (instead of recurse)
+			fwd.append(f_curr)
+			f_prev = f_curr
+
+		p_fwd = sum(f_curr[k] * t[k][end_st] for k in states)
+
+		bkw = []
+		b_prev = {}
+		# backward part of the algorithm
+		for i, x_i_plus in enumerate(reversed(seq[1:]+(None,))):
+			b_curr = {}
+			for st in states:
+				if i == 0:
+					# base case for backward part
+					b_curr[st] = t[st][end_st]
+				else:
+					b_curr[st] = sum(t[st][l]*e[l][x_i_plus]*b_prev[l] for l in states)
+
+			# normalise
+			sum_prob = sum(b_curr.values())
+			for st in states:
+				b_curr[st] /= sum_prob # normalising to make sum == 1
+
+			# iterate
+			bkw.insert(0,b_curr)
+			b_prev = b_curr
+
+		p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states)
+
+		# merging the two parts
+		posterior = []
+		for i in range(L):
+			posterior.append({st: fwd[i][st]*bkw[i][st]/p_fwd for st in states})
+
+		assert p_fwd == p_bkw
+		return fwd, bkw, posterior
+
 
 class Viterbi():
 	@classmethod
