@@ -424,7 +424,21 @@ class Context():
 
 class ForwardBackward():
 
-	@classmethod
+	def __init__(self, model):
+		self.model = model  # needs to impliment interface with potential(state_from, state_to, context_index)
+
+	def forward_backward(self, sequence, states, start, end):
+		m = len(sequence)
+		fwd = [{}] * m  # forward DP table
+		fwd[1] = start
+
+
+		bkw = [{}] * m
+		bkw[m - 1] = end
+
+	def p(self, state_from, state_to, context_index):
+		return self.model.potential(state_from, state_to, context_index)
+
 	def fwd_bkw(cls, seq, states, start, t, e, end_st):
 		"""
 		:param seq: input (observation) sequence (sentence)
@@ -465,14 +479,14 @@ class ForwardBackward():
 		bkw = []
 		b_prev = {}
 		# backward part of the algorithm
-		for i, x_i_plus in enumerate(reversed(seq[1:]+(None,))):
+		for i, x_i_plus in enumerate(reversed(seq[1:] + (None,))):
 			b_curr = {}
 			for st in states:
 				if i == 0:
 					# base case for backward part
 					b_curr[st] = t[st][end_st]
 				else:
-					b_curr[st] = sum(t[st][l]*e[l][x_i_plus]*b_prev[l] for l in states)
+					b_curr[st] = sum(t[st][l] * e[l][x_i_plus] * b_prev[l] for l in states)
 
 			# normalise
 			sum_prob = sum(b_curr.values())
@@ -480,7 +494,7 @@ class ForwardBackward():
 				b_curr[st] /= sum_prob # normalising to make sum == 1
 
 			# iterate
-			bkw.insert(0,b_curr)
+			bkw.insert(0, b_curr)
 			b_prev = b_curr
 
 		p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states)
@@ -488,7 +502,7 @@ class ForwardBackward():
 		# merging the two parts
 		posterior = []
 		for i in range(L):
-			posterior.append({st: fwd[i][st]*bkw[i][st]/p_fwd for st in states})
+			posterior.append({st: fwd[i][st] * bkw[i][st] / p_fwd for st in states})
 
 		assert p_fwd == p_bkw
 		return fwd, bkw, posterior
