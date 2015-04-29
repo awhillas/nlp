@@ -4,7 +4,7 @@ MaxEnt Markov Model training
 
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
-from lib.MaxEntMarkovModel import MaxEntMarkovModel, HonibbalsFeats, CollinsNormalisation
+from lib.MaxEntMarkovModel import MaxEntMarkovModel, HonnibalFeats, CollinsNormalisation
 import os
 
 class Train(MachineLearningModule):
@@ -14,7 +14,7 @@ class Train(MachineLearningModule):
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		# data_file = self.config('training_file')
 		data_file = self.config('training_file')  # use smaller set for development
-		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonibbalsFeats, CollinsNormalisation, 0.1)
+		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonnibalFeats, CollinsNormalisation, 0.1)
 
 	def run(self, _):
 		# Training
@@ -33,7 +33,7 @@ class Train(MachineLearningModule):
 		if os.path.isfile(saved_features):
 			self.load(filename_prefix='_features')
 
-		for i in range(10):
+		for i in range(1, 2):
 			print "Iteration set #", i
 			result = self.model.learn_parameters(maxiter=10)
 			self.save()

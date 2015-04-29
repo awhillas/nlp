@@ -1,6 +1,7 @@
+from pprint import pprint
+
 class Measure:
-	""" Class for scoring a result.
-		Has all the usual stuff.
+	""" Class for scoring binary classification models
 	"""
 	def __init__(self):
 		self.true_positive = 0
@@ -60,3 +61,29 @@ class Measure:
 
 	def __str__(self):
 		return unicode(self).encode('utf-8')
+
+class ConfusionMatrix:
+	"""
+	A specific table layout that allows visualization of the performance of an algorithm.
+	Each column of the matrix represents the instances in a predicted class, while each row represents the instances in
+	an actual class.
+	"""
+	def __init__(self, classes):
+		self.table = dict.fromkeys(classes, dict.fromkeys(classes, 0))
+
+	def add(self, predicted, actual):
+		self.table[actual][predicted] += 1
+
+	def show(self, width=80):
+		pprint(self.table, width=width)
+
+	def precision(self):
+		correct = 0
+		total = 0
+		for actual, row in self.table:
+			for predicted, count in row:
+				if actual == predicted:
+					correct += count
+				total += count
+		return correct / total
+

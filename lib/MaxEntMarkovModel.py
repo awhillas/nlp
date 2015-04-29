@@ -6,19 +6,40 @@ from math import exp, log, fsum
 from collections import defaultdict
 from sortedcontainers import SortedDict  # see http://www.grantjenks.com/docs/sortedcontainers/sorteddict.html
 from scipy.optimize import minimize
-from itertools import izip
+from itertools import izip, izip_longest
 from scipy import array
+
+# Common functions
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+def normalize(d, target=1.0):
+	""" Make all the values add to target
+	:param d: dict
+	:param target: target sum, defaults to 1.0
+	:return: dict
+	"""
+	raw = fsum(d.itervalues())
+	factor = target / raw
+	return {key: value * factor for key, value in d.iteritems()}
+
 
 # Interfaces
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
-class SequenceModel():
+class SequenceModel(object):
 	""" Model for machine learning models
 	"""
 
-	def __init__(self):
-		pass
+	""" Symbold added to the beginning and end of the sequernce so we don't fall of the edges """
+	BEGIN_SYMBOL = '-=*=-'
+	END_SYMBOL = '-=$=-'
+
+	def __init__(self, buffer_len=2):
+		self.buffer_len = buffer_len
+		self.BEGIN = [SequenceModel.BEGIN_SYMBOL * i for i in range(1, buffer_len)]
+		self.END = [SequenceModel.END_SYMBOL * i for i in range(1, buffer_len)]
 
 	def train(self, data):
 		""" Train the model from a corpus.
@@ -34,10 +55,32 @@ class SequenceModel():
 		"""
 		raise NotImplementedError("Should have implemented this")
 
+	def get_labels(self, word):
+		""" Lookup the tags for a word i.e. what Ratnaparkhi called a Tag Dictionary.
+			For unseen words this should return all tags.
+		:param word: The word to find tags for
+		:return: list of tags
+		"""
+		raise NotImplementedError("Should have implemented this")
 
-class SequenceFeaturesTemplate():
+	def potential(self, state, previous_state, context, i):
+		""" Returns the potential/likelihood? of the given state given the previous state at a position in the context
+		:param state: hypothesised state
+		:param previous_state: hypothesised previous state
+		:param context: list of (word, label) pairs. Labels should be None where not known.
+		:param i: index into the context
+		:return: probability/likelihood of the state
+		"""
+		raise NotImplementedError("Should have implemented this")
+
+
+class SequenceFeaturesTemplate(object):
 	""" Interface to features used in sequencing models like MaxEnt or Log Linear etc
 	"""
+
+	# How many words passed the current word (i) do the feature templates look. Context object uses this.
+	LOOK_BEHIND = 2  # passed the beginning
+	LOOK_AHEAD = 2  # after the last word
 
 	def __init__(self):
 		pass
@@ -51,8 +94,18 @@ class SequenceFeaturesTemplate():
 		"""
 		raise NotImplementedError("Should have implemented this")
 
+	@classmethod
+	def get_suffixes(cls, word, n):
+		""" Get n suffixes from a word. Word should be longer than n+1 """
+		if len(word) <= 1:
+			return []
+		if not len(word) > n:
+			n = len(word) - 1
 
-class WordNormaliser():
+		return [word[-i:] for i in range(1, n)]
+
+
+class WordNormaliser(object):
 	"""
 	Handles normalisation of words. Used to close vocabulary.
 	"""
@@ -94,6 +147,8 @@ class WordNormaliser():
 # 	""" aka Maximum Entropy Model
 # 		TODO: implement for comparison purposes.
 # 	"""
+# 	def __init__(self):
+# 		super(LogLinearModel, self).__init__()
 
 
 class MaxEntMarkovModel(SequenceModel):
@@ -109,6 +164,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:param regularization_parameter: Parameter used to tune the regularization amount.
 		:return:
 		"""
+		super(MaxEntMarkovModel, self).__init__()
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
 		self.normalised_data = self.normaliser.all(data)
@@ -119,6 +175,12 @@ class MaxEntMarkovModel(SequenceModel):
 		self.total = 0  # Total words seen in training corpus
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
+
+	def get_labels(self, word):
+		if word in self.word_tag_count:
+			return self.word_tag_count[word].keys()
+		else:
+			return self.tag_count.keys()
 
 	def train(self, data=None):
 		"""
@@ -207,26 +269,32 @@ class MaxEntMarkovModel(SequenceModel):
 			print result.message
 			return True
 
-	def label(self, sequences):
+	def label(self, unlabeled_sequence):
 		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
-		:param sequences: List of sentences, which are lists of words.
+		:param unlabeled_sequence: List of sentences, which are lists of words.
 		:return: List if labeled sentences: lists of (word, tag) tuple pairs.
 		"""
 		out = []
-		for sentence in sequences:
-			tags = [None] * len(sentence)
-			for i, word in enumerate(sentence):
-				context = Context(zip(sentence, tags), self.feature_templates)
-				# TODO: replace this with the Viterbi or Froward-Backward algorthm
-				probs = self.probabilities(i, context, self.parameters)
-				tags[i] = max(probs.iterkeys(), key=lambda key: probs[key])
-			out.append(zip(sentence, tags))
+		all_tags = self.tag_count.keys()
+		for seq in unlabeled_sequence:
+			tags = [None] * len(seq)
+			start_p = [self.potential(t, self.BEGIN_SYMBOL, zip(seq, tags), 1) for t in all_tags]
+			tags = Viterbi.viterbi(seq, all_tags, start_p, self)
+			out.append(zip(seq, tags))
 		return out
+
+	def potential(self, label, prev_label, sequence, i):
+		words, tags = zip(sequence)
+		tags[i] = label
+		tags[i-1] = prev_label
+		context = Context(zip(words, tags), self.feature_templates)
+		probs = self.probabilities(i, context, self.parameters)
+		return probs[label]
 
 	def probabilities(self, i, context, v):
 		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
 			sentence/sequence with a given feature.
-			aka The Soft Max function
+			aka softmax function
 		:param i: int. position in the context
 		:param context: Context object.
 		:param v: dict. parameter weight vector for each feature
@@ -238,18 +306,7 @@ class MaxEntMarkovModel(SequenceModel):
 			for feature in context.get_features(i, label):
 				if feature in v:
 					class_probabilities[label] *= exp(v[feature])  # adding exponents is the same as * them
-		return self.normalize(class_probabilities)
-
-	@classmethod
-	def normalize(cls, d, target=1.0):
-		""" Make all the values add to target
-		:param d: dict
-		:param target: target sum, defaults to 1.0
-		:return: dict
-		"""
-		raw = fsum(d.itervalues())
-		factor = target / raw
-		return {key: value * factor for key, value in d.iteritems()}
+		return normalize(class_probabilities)
 
 	def add_tag(self, w, t):
 		""" Keep track of words and their tags
@@ -357,9 +414,11 @@ class CollinsNormalisation(WordNormaliser):
 		return "!other"  # weird punctuation etc
 
 
-class HonibbalsFeats(SequenceFeaturesTemplate):
+class HonnibalFeats(SequenceFeaturesTemplate):
 	""" Features nicked from Mathew Honnibal's PerceptronTagger for TextBlob
 	"""
+	LOOK_BEHIND = 2  # passed the beginning
+	LOOK_AHEAD = 2  # after the last word
 
 	@classmethod
 	def get(cls, i, context):
@@ -373,87 +432,87 @@ class HonibbalsFeats(SequenceFeaturesTemplate):
 		def add(name, *args):
 			features.append(' '.join((name,) + tuple(args)))
 
+		def add_suffixes(feature, word, n):
+			for s in cls.get_suffixes(word, n):
+				add(feature, s)
+
 		features = []  # Should be a set but that's too slow :(
 		words, tags = context
+		n_suffixes = 4
 		# print i, words, tags
 
 		add('bias')  # It's useful to have a constant feature, which acts sort of like a prior
 		add('i word', words[i])
-		add('i suffix', words[i][-3:])
+		add_suffixes('i suffix', words[i], n_suffixes)
 		add('i pref1', words[i][0])
 
-		if i >= 1:
-			add('i-1 word', words[i - 1])
-			add('i-1 suffix', words[i - 1][-3:])  # TODO: better suffixes
-			add('i-1 tag', tags[-1])
-			add('i-1 tag+i word', tags[i - 1], words[i])
-		else:
-			add('i-1 tag', '*')
-			add('i-1 tag+i word', '*', words[i])
+		add('i-1 word', words[i - 1])
+		add_suffixes('i-1 suffix', words[i-1], n_suffixes)
+		if tags[i - 1] is not None:
+			add('i-1 tag', tags[i-1])
+		add('i-1 tag+i word', tags[i - 1], words[i])
 
-		if i >= 2:
-			add('i-2 word', words[i - 2])
+		add('i-2 word', words[i - 2])
+		if tags[i - 2] is not None:
 			add('i-2 tag', tags[i - 2])
+		if tags[i - 2] is not None and tags[i - 1] is not None:
 			add('i tag+i-2 tag', tags[i - 1], tags[i - 2])
-		else:
-			add('i-2 tag', '**')
-			add('i tag+i-2 tag', '*', '**')
 
-		if i + 1 < len(words):
-			add('i+1 word', words[i + 1])
-			add('i+1 suffix', words[i + 1][-3:])
-
-		if i + 2 < len(words):
-			add('i+2 word', words[i + 2])
+		add('i+1 word', words[i + 1])
+		add_suffixes('i+1 suffix', words[i+1], n_suffixes)
+		add('i+2 word', words[i + 2])
 
 		return features
 
 
-class Context():
+class Context(object):
 	"""
 	The main idea of this class is to reduce the number of times feature_templates.get() and zip(*sequence) are called.
 	"""
 
+	# Symbol added to the beginning and end of the sequence so we don't fall of the edges """
+	BEGIN_SYMBOL = '-=*=-'
+	END_SYMBOL = '-=$=-'
+
 	def __init__(self, sequence, feature_templates):
+		extra = feature_templates.LOOK_BEHIND
+		BEGIN = [Context.BEGIN_SYMBOL * i for i in range(1, extra+1)]
+		END = [Context.END_SYMBOL * i for i in range(1, feature_templates.LOOK_AHEAD+1)]
 		self.sequence = sequence
 		self.words, self.labels = zip(*sequence)
-		self.features = [[f for f in feature_templates.get(i, (self.words, self.labels))] for i, _ in enumerate(sequence)]
+		self.templates = feature_templates
+		self.features = [[f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))] for i, _ in enumerate(sequence)]
 
 	def get_features(self, i, label):
 		return [f + " " + label for f in self.features[i]]  # merge the feature set with the label
 
-class ForwardBackward():
+
+class ForwardBackward(object):
 
 	def __init__(self, model):
-		self.model = model  # needs to impliment interface with potential(state_from, state_to, context_index)
+		self.model = model  # needs to implement interface with potential(state_from, state_to, context_index)
 
-	def forward_backward(self, sequence, states, start, end):
-		m = len(sequence)
-		fwd = [{}] * m  # forward DP table
-		fwd[1] = start
+	def p(self, state_from, state_to, context, i):
+		return self.model.potential(state_to, state_from, context, i)
 
+	def forward_backward(self, seq, states):
+		return self.fwd_bkw(seq, states, [1.0] * len(states), [1.0] * len(states))
 
-		bkw = [{}] * m
-		bkw[m - 1] = end
-
-	def p(self, state_from, state_to, context_index):
-		return self.model.potential(state_from, state_to, context_index)
-
-	def fwd_bkw(cls, seq, states, start, t, e, end_st):
-		"""
+	def fwd_bkw(self, seq, states, start, end):
+		""" Iterative version of the Forward-Backwards algorithm
+			Taken from Wikipedia
 		:param seq: input (observation) sequence (sentence)
 		:param states: states
 		:param start: start probability
-		:param t: transition probability
-		:param e: emission probability
-		:param end_st: end state
-		:return:
+		:param end: end state
+		:return: forward and backward probabilities + posteriors
 		"""
-		L = len(seq)
+		m = len(seq)
+
+		# Forward part of the algorithm
 
 		fwd = []
 		f_prev = {}
-		# forward part of the algorithm
 		for i, x_i in enumerate(seq):
 			f_curr = {}
 			for st in states:
@@ -461,93 +520,92 @@ class ForwardBackward():
 					# base case for the forward part
 					prev_f_sum = start[st]
 				else:
-					prev_f_sum = sum(f_prev[k] * t[k][st] for k in states)
+					prev_f_sum = sum(f_prev[k] * self.p(k, st, i) for k in states)
 
-				f_curr[st] = e[st][x_i] * prev_f_sum
-
-			# normalise
-			sum_prob = sum(f_curr.values())
-			for st in states:
-				f_curr[st] /= sum_prob  # normalising to make sum == 1
+			f_curr = normalize(f_curr)
 
 			# iterate (instead of recurse)
 			fwd.append(f_curr)
 			f_prev = f_curr
 
-		p_fwd = sum(f_curr[k] * t[k][end_st] for k in states)
+		z = sum(f_curr[k] for k in states)  # normalizer for the posteriors
+
+		# Backward part of the algorithm
 
 		bkw = []
 		b_prev = {}
-		# backward part of the algorithm
 		for i, x_i_plus in enumerate(reversed(seq[1:] + (None,))):
 			b_curr = {}
 			for st in states:
 				if i == 0:
 					# base case for backward part
-					b_curr[st] = t[st][end_st]
+					b_curr[st] = end[st]
 				else:
-					b_curr[st] = sum(t[st][l] * e[l][x_i_plus] * b_prev[l] for l in states)
+					b_curr[st] = sum(self.p(st, l, i) * b_prev[l] for l in states)
 
-			# normalise
-			sum_prob = sum(b_curr.values())
-			for st in states:
-				b_curr[st] /= sum_prob # normalising to make sum == 1
+			b_curr = normalize(b_curr)
 
 			# iterate
 			bkw.insert(0, b_curr)
 			b_prev = b_curr
 
-		p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states)
+		# p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states) # Transition to first state?
 
 		# merging the two parts
 		posterior = []
-		for i in range(L):
-			posterior.append({st: fwd[i][st] * bkw[i][st] / p_fwd for st in states})
+		for i in range(m):
+			posterior.append({st: fwd[i][st] * bkw[i][st] / z for st in states})
 
-		assert p_fwd == p_bkw
+		#assert p_fwd == p_bkw
 		return fwd, bkw, posterior
 
 
-class Viterbi():
+class Viterbi(object):
 	@classmethod
-	def viterbi(cls, obs, states, start_p, trans_p, emit_p):
+	def viterbi(cls, seq, states, start_p, model):
 		""" The Viterbi algorithm.
 			assume that the observation sequence obs is non-empty and that
 			trans_p[i][j] and emit_p[i][j] is defined for all states i,j.
 			Taken from https://en.wikipedia.org/wiki/Viterbi_algorithm
-		:param obs: the sequence of observations
-		:param states: the set of hidden states
+		:param seq: the sequence of observations/items/words
+		:param states: the set of states that make up the output sequence we are trying to produce
 		:param start_p: start probability
-		:param trans_p: the transition probabilities
-		:param emit_p: the emission probabilities
+		:param model: Trained model object that supports the interface:
+			model.p(state, previous_state, context_obj, context_index) and
+			model.get_labels(word)
 		:return:
 		"""
-		V = [{}]
-		path = {}
+		V = [{}]  # len(seq) x len(states) dynamic programing table
+		path = {}  # back pointers
 
 		# Initialize base cases (t == 0)
-		for y in states:
-			V[0][y] = start_p[y] * emit_p[y][obs[0]]
-			path[y] = [y]
 
-		# Run Viterbi for t > 0
-		for t in range(1, len(obs)):
-			V.append({})
-			newpath = {}
+		for s in states:
+			V[0][s] = start_p[s]
+			path[s] = [s]
 
-			for y in states:
-				(prob, state) = max((V[t - 1][y0] * trans_p[y0][y] * emit_p[y][obs[t]], y0) for y0 in states)
-				V[t][y] = prob
-				newpath[y] = path[state] + [y]
+		# Run Viterbi for j > 0
 
+		for j in range(1, len(seq)):
+			V.append(dict.fromkeys(states, 0))
+			new_path = {}
+			x = seq[j]  # current word
+			for s in model.get_labels(x):  # only look at labels/tags seen with that word/item, or all labels for unseen words
+				context = izip_longest(seq, path[s], fillvalue=None)
+				(prob, state) = max((V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in states)
+				V[j][s] = prob
+				new_path[s] = path[state] + [s]
 			# Don't need to remember the old paths
-			path = newpath
+			path = new_path
+
+		# Find the max sequence
+
 		n = 0  # if only one element is observed max is sought in the initialization values
-		if len(obs) != 1:
-			n = t
+		if len(seq) != 1:
+			n = j
 		cls.print_dptable(V)
 		(prob, state) = max((V[n][y], y) for y in states)
-		return (prob, path[state])
+		return prob, path[state]
 
 	@classmethod
 	def print_dptable(V):
