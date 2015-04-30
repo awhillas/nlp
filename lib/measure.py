@@ -1,4 +1,4 @@
-from pprint import pprint
+from sortedcontainers import SortedDict
 
 class Measure:
 	""" Class for scoring binary classification models
@@ -69,21 +69,28 @@ class ConfusionMatrix:
 	an actual class.
 	"""
 	def __init__(self, classes):
-		self.table = dict.fromkeys(classes, dict.fromkeys(classes, 0))
+		self.table = SortedDict.fromkeys(classes, SortedDict)
+		for key, _ in self.table.iteritems():
+			self.table[key] = SortedDict.fromkeys(classes, 0)
 
 	def add(self, predicted, actual):
 		self.table[actual][predicted] += 1
 
 	def show(self, width=80):
-		pprint(self.table, width=width)
+		row_format = "{:>5} " * (len(self.table) + 1)
+		# Header
+		print row_format.format("", *self.table.keys())
+		# Rows
+		for tag, values in self.table.iteritems():
+			print row_format.format(tag, *[str(v) if v > 0 else '' for v in values.values() ])
 
 	def precision(self):
 		correct = 0
 		total = 0
-		for actual, row in self.table:
-			for predicted, count in row:
+		for actual, row in self.table.iteritems():
+			for predicted, count in row.iteritems():
 				if actual == predicted:
 					correct += count
 				total += count
-		return correct / total
+		return float(correct) / total
 

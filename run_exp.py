@@ -11,7 +11,7 @@ class Experiment:
 		self.config = ConfigParser.SafeConfigParser()
 		self.config.read(config_path)
 		today = date.fromtimestamp(time.time())
-		self.working_dir = '/'.join([self.config.get(data_set_id, 'output'), today.isoformat(), self.data_set_id])
+		self.working_dir = '/'.join([self.config.get(data_set_id, 'working'), today.isoformat(), self.data_set_id])
 
 	def run(self):
 		previous_module = None
@@ -25,7 +25,7 @@ class Experiment:
 			if previous_module is None:
 				if not m.input_module is None:
 					previous_module = self.load(m.input_module)
-					# previous_module.load()
+					previous_module.load()
 					print "Loaded: ", previous_module.__class__.__name__
 
 			# Do the work

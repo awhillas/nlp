@@ -20,24 +20,28 @@ class Train(MachineLearningModule):
 		# Training
 		print "Training MaxEnt model..."
 
-		saved_features = self.working_dir() + '/' + self.get_save_file_name('_features')
+		path = self.working_dir()
+		saved_features = path + '/' + self.get_save_file_name('_features')
+		saved_params = path + '/' + self.get_save_file_name('_parameters')
 
 		# Learn features
 
 		if not os.path.isfile(saved_features):
 			self.model.train()
 			self.save(filename_prefix='_features')
-
-		# Learn feature weights
-
-		if os.path.isfile(saved_features):
+		else:
 			self.load(filename_prefix='_features')
 
-		for i in range(1, 2):
-			print "Iteration set #", i
-			result = self.model.learn_parameters(maxiter=10)
-			self.save()
+		# Learn feature weights (incrementally... in case it crashes)
+
+		if not os.path.isfile(saved_params):
+			for i in range(0, 1):
+				print "Iteration set #", i
+				self.model.learn_parameters(maxiter=10)
+				self.save(filename_prefix='_parameters')
+		else:
+			self.load(filename_prefix='_parameters')
 
 		# TODO: Use cross-validation set to tune the regularization param.
 
-		return result
+		return True

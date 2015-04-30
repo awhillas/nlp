@@ -16,16 +16,22 @@ class Test(MachineLearningModule):
 
 		all_labels = tagger.model.tag_count.keys()
 		matrix = ConfusionMatrix(all_labels)
-
+		sents = 0
 		for i, gold_seq in enumerate(gold_labeled_sequences):
 			words, gold_labels = zip(*gold_seq)
-			words2, predicted_labels = predicted[i]
+			words2, predicted_labels = zip(*predicted[i])
+			sentence_error = False
 			for j, word in enumerate(words):
 				if word == words2[j]:
 					matrix.add(gold_labels[j], predicted_labels[j])
+					if gold_labels[j] != predicted_labels[j]:
+						sentence_error = True
 				else:
 					print "Sequences out of sync", words, words2
 					raise
+			if not sentence_error:
+				sents += 1
 
 		matrix.show(len(all_labels) * 3)
-		print "Precision:", matrix.precision() * 100, "%"
+		print "Tag:", "{:03.2f}".format(matrix.precision() * 100), "%"
+		print "Sentence: ", "{:03.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
