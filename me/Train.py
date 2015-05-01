@@ -9,16 +9,12 @@ import os
 
 class Train(MachineLearningModule):
 
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		# data_file = self.config('training_file')
-		data_file = self.config('training_file')  # use smaller set for development
-		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonnibalFeats, CollinsNormalisation, 0.1)
-
 	def run(self, _):
 		# Training
 		print "Training MaxEnt model..."
+		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		data_file = self.config('training_file')  # use smaller set for development
+		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonnibalFeats, CollinsNormalisation, 0.1)
 
 		path = self.working_dir()
 		saved_features = path + '/' + self.get_save_file_name('_features')
