@@ -329,6 +329,10 @@ class CollinsNormalisation(WordNormaliser):
 		'Chapter 2: Tagging problems and Hidden Markov models'
 	"""
 
+	# Top 20 Emoticons: http://www.datagenetics.com/blog/october52012/index.html
+	# TODO: get top 100 Emoticons
+	EMOS = [':)', ':D', ':(', ';)', ':-)', ':P', '=)', '(:', ';-)', ':/', 'XD', '=D', ':o', '=]', 'D:', ';D', ':]', ':-(', '=/', '=(']
+
 	@classmethod
 	def word(cls, word):
 		# return cls.pseudo_map_digits(word)
@@ -340,26 +344,36 @@ class CollinsNormalisation(WordNormaliser):
 
 	@classmethod
 	def junk(cls, word):
+		if word in cls.EMOS:
+			print '!emoticon', word
+			return '!emoticon'
 		if len(word) > 1 \
 				and "'" not in word \
-				and '-' not in word \
-				and not word[-1] == '.':
+				and '-' not in word:
 			if word.count('@') == 1:  # poor mans email spotter
+				# TODO: better email addresses detection
 				return '!emailAddress'
 			elif word.lower().startswith('http') \
 					or word.lower().startswith('www.') \
 					or word.lower().endswith('.com'):  # poor mans URL
+				# TODO: better URLs detection
 				return '!url'
 			elif all(i in string.punctuation for i in word):
-				# TODO: handle smiles
 				return '!allPunctuation'
 			elif not all(i in string.letters for i in word):
-				# TODO: handle URLs
-				# TODO: email addresses
 				# TODO: handle initials
-				# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
-				# print '!mixedUp', word
-				return '!mixedUp'
+				acro = '.'.join(word.split('.'))
+				if acro == word or acro+'.' == word:
+					print '!acronym', word
+					return '!acronym'
+				elif word[-1] == '.':
+					# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
+					print '!initials', word
+					return '!initials'
+				else:
+					# TODO: handle smiles
+					# print '!mixedUp', word
+					return '!mixedUp'
 		return word.lower()
 
 	@classmethod
