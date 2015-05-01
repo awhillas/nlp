@@ -332,6 +332,7 @@ class CollinsNormalisation(WordNormaliser):
 	# Top 20 Emoticons: http://www.datagenetics.com/blog/october52012/index.html
 	# TODO: get top 100 Emoticons
 	EMOS = [':)', ':D', ':(', ';)', ':-)', ':P', '=)', '(:', ';-)', ':/', 'XD', '=D', ':o', '=]', 'D:', ';D', ':]', ':-(', '=/', '=(']
+	RE_DIGITS = re.compile('\d')
 
 	@classmethod
 	def word(cls, word):
@@ -361,15 +362,16 @@ class CollinsNormalisation(WordNormaliser):
 			elif all(i in string.punctuation for i in word):
 				return '!allPunctuation'
 			elif not all(i in string.letters for i in word):
-				# TODO: handle initials
+				# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
 				acro = '.'.join(word.split('.'))
 				if acro == word or acro+'.' == word:
-					print '!acronym', word
-					return '!acronym'
-				elif word[-1] == '.':
-					# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
-					print '!initials', word
-					return '!initials'
+					if len(word) > 2:
+						# U.S.A or U.S.A.
+						print '!acronym', word
+						return '!acronym'
+					else:
+						print '!initial', word
+						return '!initial'
 				else:
 					# TODO: handle smiles
 					# print '!mixedUp', word
@@ -383,10 +385,9 @@ class CollinsNormalisation(WordNormaliser):
 			See Michael Collins' NLP Coursera notes, chap.2
 			:rtype: str
 		"""
-		_digits = re.compile('\d')
 
 		def contains_digits(d):
-			return bool(_digits.search(d))
+			return bool(cls.RE_DIGITS.search(d))
 
 		if contains_digits(word):
 			if word.isdigit():
