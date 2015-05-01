@@ -76,13 +76,14 @@ class ConfusionMatrix:
 	def add(self, predicted, actual):
 		self.table[actual][predicted] += 1
 
-	def show(self, width=80):
-		row_format = "{:>5} " * (len(self.table) + 1)
+	def show(self):
+		row_format = "{:>4} " * (len(self.table) + 1)
 		# Header
 		print row_format.format("", *self.table.keys())
 		# Rows
 		for tag, values in self.table.iteritems():
-			print row_format.format(tag, *[str(v) if v > 0 else '' for v in values.values() ])
+			data = [str(v) if v > 0 else '' for v in values.values() ] + [sum(values.values())]
+			print row_format.format( tag, *data )
 
 	def precision(self):
 		correct = 0
