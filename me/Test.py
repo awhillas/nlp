@@ -35,3 +35,5 @@ class Test(MachineLearningModule):
 		matrix.show(len(all_labels) * 3)
 		print "Tag:", "{:03.2f}".format(matrix.precision() * 100), "%"
 		print "Sentence: ", "{:03.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
+
+		return True

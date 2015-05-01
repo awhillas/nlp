@@ -8,7 +8,7 @@ from sortedcontainers import SortedDict  # see http://www.grantjenks.com/docs/so
 from scipy.optimize import minimize
 from itertools import izip, izip_longest
 from scipy import array
-
+import time
 
 # Common functions
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -267,19 +267,24 @@ class MaxEntMarkovModel(SequenceModel):
 		"""
 
 		def print_sol(words, predicted):
-			l = max(len(s) for s in words)  # longest word
-			el = "{:<"+str(l)+"} "
-			row_format = el * (len(seq) + 1)
-			print row_format.format("words:", *words)
+			row_format = ''
+			for j, w in enumerate(words):
+				row_format += "{"+str(j+1)+":<"+str(len(w)+2)+"}"
+			print row_format.format("words: ", *words)
 			print row_format.format("tagged:", *predicted)
 
 		out = []
 		all_tags = self.tag_count.keys()
-		for seq in unlabeled_sequence:
+
+		for i, seq in enumerate(unlabeled_sequence, start=1):
+			print "\nSentence {0} ({1:2.2f}%)".format(i, float(i)/len(unlabeled_sequence) * 100)
+			t0 = time.time()
 			context = Context((seq, [''] * len(seq)), self.feature_templates)
 			start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 0)) for t in all_tags])
 			prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
+			t1 = time.time()
 			print_sol(seq, tags)
+			print "Time:", t1 - t0, ", Per word:", (t1 - t0) / len(seq)
 			out.append(zip(seq, tags))
 		return out
 
@@ -618,7 +623,7 @@ class Viterbi(object):
 		n = 0  # if only one element is observed max is sought in the initialization values
 		if len(seq) != 1:
 			n = j
-		print_dptable(V, seq)
+		#print_dptable(V, seq)
 		(prob, state) = max((V[n][y], y) for y in all_states)
 		return prob, path[state]
 
