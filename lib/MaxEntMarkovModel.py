@@ -268,8 +268,8 @@ class MaxEntMarkovModel(SequenceModel):
 
 		def print_sol(words, predicted):
 			row_format = ''
-			for j, w in enumerate(words):
-				row_format += "{"+str(j+1)+":<"+str(len(w)+2)+"}"
+			for k, w in enumerate(words):
+				row_format += "{"+str(k+1)+":<"+str(max(len(w), len(predicted[k]))+1)+"}"
 			print row_format.format("words: ", *words)
 			print row_format.format("tagged:", *predicted)
 

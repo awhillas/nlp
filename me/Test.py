@@ -2,7 +2,7 @@
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.measure import ConfusionMatrix
-from difflib import Differ
+
 
 class Test(MachineLearningModule):
 
@@ -14,8 +14,8 @@ class Test(MachineLearningModule):
 		# TODO: move most of this inside the confusion matrix
 		def print_sol(sentence, guess, gold):
 			row_format = '{0}'
-			for j, w in enumerate(words):
-				row_format += "{"+str(j+1)+":<"+str(len(w)+2)+"}"
+			for k, w in enumerate(words):
+				row_format += "{"+str(k+1)+":<"+str(max(len(w), len(gold[k]))+1)+"}"
 			print row_format.format("\nwords: ", *sentence)
 			print row_format.format("gold:  ", *gold)
 			print row_format.format("guess: ", *guess)
@@ -43,7 +43,7 @@ class Test(MachineLearningModule):
 				sents += 1
 			print_sol(words, predicted_labels, gold_labels)
 			error_count = sum([1 if predicted_labels[i] == gold_labels[i] else 0 for i,_ in enumerate(gold_labels)])
-			print "Error count:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
+			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
 
 		matrix.show()
 		print "Tag:", "{:03.2f}".format(matrix.precision() * 100), "%"
