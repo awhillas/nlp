@@ -609,10 +609,9 @@ class Viterbi(object):
 			V.append(dict.fromkeys(all_states, 0))
 			new_path = {}
 			x = seq[j]  # current word
-			#possiable_states = model.get_labels(x)
-			for s in all_states:  # only look at labels/tags seen with that word/item, or all labels for unseen words
+			for s in all_states:  # TODO: only consider labels we have seen for this word?
 				context = Context(list(izip_longest(seq, path[s], fillvalue='')))
-				(prob, state) = max((V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in all_states)
+				(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.get_labels(seq[j-1]) )
 				V[j][s] = prob
 				new_path[s] = path[state] + [s]
 			# Don't need to remember the old paths
