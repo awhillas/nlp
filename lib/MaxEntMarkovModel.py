@@ -277,7 +277,7 @@ class MaxEntMarkovModel(SequenceModel):
 		all_tags = self.tag_count.keys()
 		for seq in unlabeled_sequence:
 			context = Context((seq, [''] * len(seq)), self.feature_templates)
-			start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 1)) for t in all_tags])
+			start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 0)) for t in all_tags])
 			prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
 			print_sol(seq, tags)
 			out.append(zip(seq, tags))
@@ -285,7 +285,8 @@ class MaxEntMarkovModel(SequenceModel):
 
 	def potential(self, label, prev_label, context, i):
 		context.labels[i] = label
-		context.labels[i-1] = prev_label
+		if len(context.sequence) > 1:
+			context.labels[i-1] = prev_label
 		probs = self.probabilities(i, context, self.parameters)
 		return probs[label]
 
@@ -484,7 +485,7 @@ class Context(object):
 		END = [Context.END_SYMBOL * i for i in range(1, feature_templates.LOOK_AHEAD+1)]
 		if isinstance(sequence, tuple):
 			self.words, self.labels = sequence
-			self.sequence = zip(sequence)
+			self.sequence = zip(*sequence)
 		elif isinstance(sequence, list):
 			self.sequence = sequence
 			self.words, self.labels = zip(*sequence)
@@ -494,7 +495,7 @@ class Context(object):
 		self.words = list(self.words)
 		self.labels = list(self.labels)
 		self.templates = feature_templates
-		self.features = [[f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))] for i, _ in enumerate(sequence)]
+		self.features = [[f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))] for i, _ in enumerate(self.sequence)]
 
 	def get_features(self, i, label):
 		return [f + " " + label for f in self.features[i]]  # merge the feature set with the label
