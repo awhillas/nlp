@@ -346,36 +346,39 @@ class CollinsNormalisation(WordNormaliser):
 	@classmethod
 	def junk(cls, word):
 		if word in cls.EMOS:
-			print '!emoticon', word
-			return '!emoticon'
+			print '!emoticon!', word
+			return '!emoticon!'
 		if len(word) > 1 \
 				and "'" not in word \
 				and '-' not in word:
 			if word.count('@') == 1:  # poor mans email spotter
 				# TODO: better email addresses detection
-				return '!emailAddress'
+				return '!emailAddress!'
 			elif word.lower().startswith('http') \
 					or word.lower().startswith('www.') \
 					or word.lower().endswith('.com'):  # poor mans URL
 				# TODO: better URLs detection
-				return '!url'
+				return '!url!'
 			elif all(i in string.punctuation for i in word):
-				return '!allPunctuation'
+				return '!allPunctuation!'
 			elif not all(i in string.letters for i in word):
 				# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
-				acro = '.'.join(word.split('.'))
+				acro = '.'.join(''.join(c for c in word if c not in '.'))
 				if acro == word or acro+'.' == word:
 					if len(word) > 2:
 						# U.S.A or U.S.A.
-						print '!acronym', word
-						return '!acronym'
+						print '!acronym!', word
+						return '!acronym!'
 					else:
-						print '!initial', word
-						return '!initial'
+						print '!initial!', word
+						return '!initial!'
+				elif word.count('.') == 1 and word[-1] == '.':
+					print '!abbreviation', word
+					return '!abbreviation!'
 				else:
 					# TODO: handle smiles
-					# print '!mixedUp', word
-					return '!mixedUp'
+					print '!mixedUp!', word
+					return '!mixedUp!'
 		return word.lower()
 
 	@classmethod
@@ -392,23 +395,23 @@ class CollinsNormalisation(WordNormaliser):
 		if contains_digits(word):
 			if word.isdigit():
 				if len(word) == 2:
-					return '!twoDigitNum'
+					return '!twoDigitNum!'
 				elif len(word) == 4:
-					return '!fourDigitNum'
+					return '!fourDigitNum!'
 				else:
-					return '!otherNumber'
+					return '!otherNum!'
 			elif '-' in word:
-				return '!containsDigitAndDash'
+				return '!containsDigitAndDash!'
 			elif '/' in word:
-				return '!containsDigitAndSlash'
+				return '!containsDigitAndSlash!'
 			elif ',' in word:
-				return '!containsDigitAndComma'
+				return '!containsDigitAndComma!'
 			elif '.' in word:
-				return '!containsDigitAndPeriod'
+				return '!containsDigitAndPeriod!'
 			elif word.isalnum():
-				return '!containsDigitAndAlpha'
+				return '!containsDigitAndAlpha!'
 			else:
-				return '!containsDigit'
+				return '!containsDigit!'
 		return word
 
 	@classmethod
