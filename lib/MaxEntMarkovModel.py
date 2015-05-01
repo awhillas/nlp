@@ -275,17 +275,17 @@ class MaxEntMarkovModel(SequenceModel):
 
 		out = []
 		all_tags = self.tag_count.keys()
-
-		for i, seq in enumerate(unlabeled_sequence, start=1):
+		for i, raw_seq in enumerate(unlabeled_sequence, start=1):
 			print "\nSentence {0} ({1:2.2f}%)".format(i, float(i)/len(unlabeled_sequence) * 100)
+			seq = self.normaliser.sentence(raw_seq)
 			t0 = time.time()
 			context = Context((seq, [''] * len(seq)), self.feature_templates)
 			start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 0)) for t in all_tags])
 			prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
 			t1 = time.time()
 			print_sol(seq, tags)
-			print "Time:", t1 - t0, ", Per word:", (t1 - t0) / len(seq)
-			out.append(zip(seq, tags))
+			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(seq))
+			out.append(zip(raw_seq, tags))
 		return out
 
 	def potential(self, label, prev_label, context, i):
