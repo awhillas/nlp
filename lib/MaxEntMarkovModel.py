@@ -220,7 +220,7 @@ class MaxEntMarkovModel(SequenceModel):
 			# Regularization
 			regulatiser = sum([param * param for param in v.itervalues()]) * (self.regularization_parameter / 2)
 
-			print log_p, regulatiser, log_p - regulatiser
+			print "{:>8.2f} - {:>8.2f} = {:>8.2f}".format(log_p, regulatiser, log_p - regulatiser)
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
@@ -346,7 +346,7 @@ class CollinsNormalisation(WordNormaliser):
 	@classmethod
 	def junk(cls, word):
 		if word in cls.EMOS:
-			print '!emoticon!', word
+			# print '!emoticon!', word
 			return '!emoticon!'
 		if len(word) > 1 \
 				and "'" not in word \
@@ -367,17 +367,17 @@ class CollinsNormalisation(WordNormaliser):
 				if acro == word or acro+'.' == word:
 					if len(word) > 2:
 						# U.S.A or U.S.A.
-						print '!acronym!', word
+						# print '!acronym!', word
 						return '!acronym!'
 					else:
-						print '!initial!', word
+						# print '!initial!', word
 						return '!initial!'
 				elif word.count('.') == 1 and word[-1] == '.':
-					print '!abbreviation', word
+					# print '!abbreviation', word
 					return '!abbreviation!'
 				else:
 					# TODO: handle smiles
-					print '!mixedUp!', word
+					# print '!mixedUp!', word
 					return '!mixedUp!'
 		return word.lower()
 
@@ -422,16 +422,16 @@ class CollinsNormalisation(WordNormaliser):
 			:rtype: str
 		"""
 		if len(word) > 1 and word[0].isupper() and word[1] == '.':
-			return '!capPeriod'  # Person's name initial i.e. "M."
+			return '!capPeriod!'  # Person's name initial i.e. "M."
 
 		if word.isupper():
-			return '!allCaps'
+			return '!allCaps!'
 
 		if word.istitle():
-			return '!initCap'  # TODO: should distinguish between words at beginning of sentence?
+			return '!initCap!'  # TODO: should distinguish between words at beginning of sentence?
 
 		if word.islower():
-			return '!lowercase'
+			return '!lowercase!'
 
 		return "!other"  # weird punctuation etc
 
@@ -455,8 +455,9 @@ class HonnibalFeats(SequenceFeaturesTemplate):
 			features.append(' '.join((name,) + tuple(args)))
 
 		def add_suffixes(feature, word, n):
-			for s in cls.get_suffixes(word, n):
-				add(feature, s)
+			if word[-1] != '!' and word[0] != '!':  # i.e. it a pseudo word TODO: move this to Normalizer class
+				for s in cls.get_suffixes(word, n):
+					add(feature, s)
 
 		features = []  # Should be a set but that's too slow :(
 		words, tags = context
