@@ -15,5 +15,5 @@ class Predict(MachineLearningModule):
 		self.model = trained.model
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		self.labeled_sequences = self.model.label(data.sents(self.config('testing_file')))
-
+		
 		return True

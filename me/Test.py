@@ -45,7 +45,9 @@ class Test(MachineLearningModule):
 			error_count = sum([1 if predicted_labels[i] == gold_labels[i] else 0 for i,_ in enumerate(gold_labels)])
 			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
 
+		self.output('confusion_matrix.csv', matrix.csv())
 		matrix.show()
+		
 		print "Tag:", "{:03.2f}".format(matrix.precision() * 100), "%"
 		print "Sentence: ", "{:03.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
 

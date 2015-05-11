@@ -19,7 +19,7 @@ class MachineLearningModule:  # Interface.
 		or simply loaded from a previous run in case of crashes in the middle of long
 		pipelines or if it is redundant to keep recalculating the same thing.
 	"""
-	
+
 	def __init__(self, config, data_set_id):
 		"""
 		:param config: Instance of ConfigParser.
@@ -35,7 +35,7 @@ class MachineLearningModule:  # Interface.
 		"""
 		raise NotImplementedError( "Should have implemented this" )
 		return False  # return True if all went well
-	
+
 	def save(self, path = None, filename_prefix = ''):
 		""" Save the output.
 			Ideally so that a run() can be skipped
@@ -56,8 +56,8 @@ class MachineLearningModule:  # Interface.
 		data = open(path+ '/' + self.get_save_file_name(filename_prefix), 'rb')
 		tmp_dict = pickle.load(data)
 		data.close()
-		self.__dict__.update(tmp_dict) 
-		
+		self.__dict__.update(tmp_dict)
+
 	def get_save_file_name(self, filename_prefix = ''):
 		""" Return a unique filename.
 		"""
@@ -82,7 +82,12 @@ class MachineLearningModule:  # Interface.
 			self.check_path(path)
 		return path
 
-	def get_date(self):
+	def output(self, file_name, text):
+		with open(self.output_dir()+'/'+file_name, 'a') as f:
+			f.write(text)
+
+	@classmethod
+	def get_date(cls):
 		today = date.fromtimestamp(time.time())
 		return today.isoformat()
 

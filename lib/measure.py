@@ -1,4 +1,7 @@
 from sortedcontainers import SortedDict
+import re
+import csv
+import StringIO
 
 class Measure:
 	""" Class for scoring binary classification models
@@ -77,13 +80,29 @@ class ConfusionMatrix:
 		self.table[actual][predicted] += 1
 
 	def show(self):
-		row_format = "{:>4} " * (len(self.table) + 1)
+		row_format = "{:>5} " * (len(self.table) + 1)
+		return self.get_output(row_format)
+
+	def csv(self):
+		output = StringIO.StringIO()
+		wr = csv.writer(output, quoting=csv.QUOTE_ALL)
 		# Header
-		print row_format.format("", *self.table.keys())
+		wr.writerow([""] + list(self.table.keys()))
+		# Rows
+		for tag, values in self.table.iteritems():
+			data = [str(v) if v > 0 else '' for v in values.values()] + [sum(values.values())]
+			wr.writerow([tag] + data)
+		return output.getvalue()
+
+	def get_output(self, row_format):
+		out = ''
+		# Header
+		out += row_format.format("", *[re.escape(s) for s in self.table.keys()])
 		# Rows
 		for tag, values in self.table.iteritems():
 			data = [str(v) if v > 0 else '' for v in values.values() ] + [sum(values.values())]
-			print row_format.format( tag, *data )
+			out += row_format.format( tag, *data )
+		return out
 
 	def precision(self):
 		correct = 0

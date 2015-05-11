@@ -31,9 +31,9 @@ class Train(MachineLearningModule):
 		# Learn feature weights (incrementally... in case it crashes)
 
 		if not os.path.isfile(saved_params):
-			for i in range(0, 1):
+			for i in range(0, 10):
 				print "Iteration set #", i
-				self.model.learn_parameters(maxiter=10)
+				self.model.learn_parameters(maxiter=3)
 				self.save(filename_prefix='_parameters')
 		else:
 			self.load(filename_prefix='_parameters')
