@@ -1,3 +1,5 @@
+__author__ = "Alexander Whillas <whillas@gmail.com>"
+
 from sortedcontainers import SortedDict
 import re
 import csv
@@ -90,7 +92,7 @@ class ConfusionMatrix:
 		wr.writerow([""] + list(self.table.keys()))
 		# Rows
 		for tag, values in self.table.iteritems():
-			data = [str(v) if v > 0 else '' for v in values.values()] + [sum(values.values())]
+			data = [str(v) if v > 0 else '' for v in values.values()] + [sum(values.values()) - values[tag]]
 			wr.writerow([tag] + data)
 		return output.getvalue()
 

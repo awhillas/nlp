@@ -1,3 +1,4 @@
+__author__ = "Alexander Whillas <whillas@gmail.com>"
 
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
@@ -8,7 +9,7 @@ class Test(MachineLearningModule):
 
 	def __init__(self, config, data_set_id):
 		MachineLearningModule.__init__(self, config, data_set_id)
-		self.input_module = 'me.Predict'
+		#self.input_module = 'me.Predict'
 
 	def run(self, tagger):
 		# TODO: move most of this inside the confusion matrix

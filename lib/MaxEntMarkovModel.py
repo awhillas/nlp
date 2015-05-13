@@ -1,4 +1,4 @@
-__author__ = 'alex'
+__author__ = "Alexander Whillas <whillas@gmail.com>"
 
 import re
 import string
@@ -23,6 +23,51 @@ def normalize(d, target=1.0):
 	raw = fsum(d.itervalues())
 	factor = target / raw
 	return {key: value * factor for key, value in d.iteritems()}
+
+
+def print_dptable(V, seq):
+	""" Display Dynamic Programming table for Viterbi algo
+	"""
+	# Header
+	row_format = "{:<10}  " * (len(seq) + 1)
+	print row_format.format("", *seq)
+	# Rows
+	row_format ="{:>10}  " +  "{:-<1.8f}  " * (len(seq))
+	inv = dict([(tag, [row[tag] for row in V]) for tag in V[0].keys()])  # transpose
+	for tag, values in inv.iteritems():
+		row = [tag] + values
+		print row_format.format(*row)
+
+
+class color:
+	""" http://stackoverflow.com/questions/8924173/how-do-i-print-bold-text-in-python
+		usage: print color.BOLD + 'Hello World !' + color.END
+	"""
+	PURPLE = '\033[95m'
+	CYAN = '\033[96m'
+	DARKCYAN = '\033[36m'
+	BLUE = '\033[94m'
+	GREEN = '\033[92m'
+	YELLOW = '\033[93m'
+	RED = '\033[91m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
+	END = '\033[0m'
+
+
+def matrix_to_string(matrix):
+	# Figure out the max width of each column
+	widths = [0] * len(matrix[0])
+	for col in range(len(matrix[0])):
+		for row in matrix:
+			if len(row[col]) > widths[col]:
+				widths[col] = len(row[col])
+	# Generate a row format string
+	row_format = ' '.join(["{:"+str(l)+"}" for l in widths])  # align'd right
+	output = []
+	for row in matrix:
+		output += [row_format.format(*row)]
+	return "\n".join(output)
 
 
 # Interfaces
@@ -455,11 +500,11 @@ class HonnibalFeats(SequenceFeaturesTemplate):
 			features.append(' '.join((name,) + tuple(args)))
 
 		def add_suffixes(feature, word, n):
-			if word[-1] != '!' and word[0] != '!':  # i.e. it a pseudo word TODO: move this to Normalizer class
+			if word[-1] != '!' and word[0] != '!':  # i.e. it's a pseudo word TODO: move this to Normalizer class
 				for s in cls.get_suffixes(word, n):
 					add(feature, s)
 
-		features = []  # Should be a set but that's too slow :(
+		features = []  # Should be a Set but that's too slow :(
 		words, tags = context
 		n_suffixes = 4
 		# print i, words, tags
@@ -500,7 +545,7 @@ class Context(object):
 
 	def __init__(self, sequence, feature_templates=HonnibalFeats):
 		"""
-		:param sequence: List of tuples of the form (word, label) or a tuble of lists (words, labels)
+		:param sequence: List of tuples of the form (word, label) or a tuple of 2 lists (words, labels)
 		:param feature_templates: A SequenceFeaturesTemplate object
 		:return:
 		"""
@@ -628,8 +673,9 @@ class Viterbi(object):
 			V.append(dict.fromkeys(all_states, 0))
 			new_path = {}
 			x = seq[j]  # current word
-			for s in all_states:  # TODO: only consider labels we have seen for this word?
+			for s in all_states:
 				context = Context(list(izip_longest(seq, path[s], fillvalue='')))
+				# We only consider labels we have seen for this word (see: get_labels(word))
 				(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.get_labels(seq[j-1]) )
 				V[j][s] = prob
 				new_path[s] = path[state] + [s]
@@ -644,30 +690,3 @@ class Viterbi(object):
 		#print_dptable(V, seq)
 		(prob, state) = max((V[n][y], y) for y in all_states)
 		return prob, path[state]
-
-
-def print_dptable(V, seq):
-	# Header
-	row_format = "{:<10}  " * (len(seq) + 1)
-	print row_format.format("", *seq)
-	# Rows
-	row_format ="{:>10}  " +  "{:-<1.8f}  " * (len(seq))
-	inv = dict([(tag, [row[tag] for row in V]) for tag in V[0].keys()])  # transpose
-	for tag, values in inv.iteritems():
-		row = [tag] + values
-		print row_format.format(*row)
-
-class color:
-	""" http://stackoverflow.com/questions/8924173/how-do-i-print-bold-text-in-python
-		usage: print color.BOLD + 'Hello World !' + color.END
-	"""
-	PURPLE = '\033[95m'
-	CYAN = '\033[96m'
-	DARKCYAN = '\033[36m'
-	BLUE = '\033[94m'
-	GREEN = '\033[92m'
-	YELLOW = '\033[93m'
-	RED = '\033[91m'
-	BOLD = '\033[1m'
-	UNDERLINE = '\033[4m'
-	END = '\033[0m'

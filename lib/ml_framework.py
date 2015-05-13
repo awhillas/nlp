@@ -1,6 +1,4 @@
-
 __author__ = "Alexander Whillas <whillas@gmail.com>"
-__date__ = "$Jan 2015"
 
 
 """
@@ -43,9 +41,12 @@ class MachineLearningModule:  # Interface.
 		if path is None:
 			path = self.working_dir()
 		self.check_path(path)
-		f = open(path+'/'+self.get_save_file_name(filename_prefix), 'wb')
+		full_path = path+'/'+self.get_save_file_name(filename_prefix)
+		f = open(full_path, 'wb')
 		pickle.dump(self.__dict__, f, 2)
 		f.close()
+		print "Saved", full_path
+		return full_path
 
 	def load(self, path = None, filename_prefix = ''):
 		""" Load the saved output
@@ -53,10 +54,13 @@ class MachineLearningModule:  # Interface.
 		"""
 		if path is None:
 			path  = self.working_dir()
-		data = open(path+ '/' + self.get_save_file_name(filename_prefix), 'rb')
+		full_path = path+ '/' + self.get_save_file_name(filename_prefix)
+		data = open(full_path, 'rb')
 		tmp_dict = pickle.load(data)
 		data.close()
 		self.__dict__.update(tmp_dict)
+		print "Loaded", full_path
+		return full_path
 
 	def get_save_file_name(self, filename_prefix = ''):
 		""" Return a unique filename.
