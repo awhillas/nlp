@@ -428,7 +428,7 @@ class CollinsNormalisation(WordNormaliser):
 	RE_DIGITS = re.compile('\d')
 	# See: http://code.tutsplus.com/tutorials/8-regular-expressions-you-should-know--net-6149]
 	# TODO: uses these RegExs
-	URL_REGEX = re.compile("http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+")
+	URL_REGEX = re.compile("http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|^www\..*|.*\.(com|org|net|edu|gov|co){1}(\.[a-zA-Z]{2})?$")
 	EMAIL_REGEX = re.compile("^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$")
 	IP_ADDRESS_REGEX = re.compile("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")
 
@@ -478,12 +478,12 @@ class CollinsNormalisation(WordNormaliser):
 			See Michael Collins' NLP Coursera notes, chap.2
 			:rtype: str
 		"""
-		if bool(cls.URL_REGEX.search(word)):
+		if bool(cls.EMAIL_REGEX.search(word.lower())):
+			# print '!email!', word
+			return '!email!'
+		elif bool(cls.URL_REGEX.search(word)):
 			print '!url!', word
 			return '!url!'
-		elif bool(cls.EMAIL_REGEX.search(word)):
-			print '!email!', word
-			return '!email!'
 		elif bool(cls.RE_DIGITS.search(word)):  # contains digits
 			if word.isdigit():
 				if len(word) == 2:
