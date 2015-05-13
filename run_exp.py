@@ -1,28 +1,30 @@
 #! /usr/bin/python
 
-import sys, ConfigParser, importlib, time
+import sys, ConfigParser, importlib, time, argparse
 from datetime import date
 
 class Experiment:
 
-	def __init__(self, data_set_id, scripts_pipe, config_path):
+	def __init__(self, data_set_id, scripts_pipe, config_file, no_cache, no_save):
 		self.data_set_id = data_set_id
 		self.scripts_pipe = scripts_pipe
 		self.config = ConfigParser.SafeConfigParser()
-		self.config.read(config_path)
+		self.config.read(config_file)
 		today = date.fromtimestamp(time.time())
 		self.working_dir = '/'.join([self.config.get(data_set_id, 'working'), today.isoformat(), self.data_set_id])
+		self.no_cache = no_cache
+		self.no_save = no_save
 
 	def run(self):
 		previous_module = None
 		# Modules should communicate via the config object
-		for script in self.scripts_pipe.split("|"):
+		for script in self.scripts_pipe:
 
 			# Load the next script in the que
 			m = self.load(script)
 
 			# Load save previous module if not present
-			if previous_module is None:
+			if previous_module is None and not self.no_cache:
 				if not m.input_module is None:
 					previous_module = self.load(m.input_module)
 					previous_module.load()
@@ -34,10 +36,12 @@ class Experiment:
 
 			# Save the run to disk
 			if success:
-				m.save(self.working_dir)
+				if not self.no_save:
+					print "Saving", script
+					m.save(self.working_dir)
 			else:
 				# Need to pull and error here
-				print str(script) + " failed!"
+				print str(script) + " failed! Work not saved."
 				break
 
 	def load(self, name):
@@ -51,27 +55,25 @@ class Experiment:
 
 
 if __name__ == "__main__":
-	if len(sys.argv) < 2:
-		print """
-Too few arguments!
+	parser = argparse.ArgumentParser(description="""
+		Run an experiment. General interface to machine learning scripts. The string parameter is a
+		pipeline of scripts that can be executed, with the output of one feed into the input of the next. You
+		can specify which computations you want to execute. Store the results of each part of the computation
+		to disk.
+	""")
+	parser.add_argument('data',\
+						help="Section ID in the config file that points to the experiment variables.")
+	parser.add_argument('script', nargs='+',\
+						help="Script pipe, an ordered list of scripts to run.")
+	parser.add_argument('-c', '--config', default='./config.ini',\
+						help='Path to a config file to use. If not provided "config.ini" in the same folder is assumed.')
+	parser.add_argument('-nc', '--no-cache', default=False, action='store_const', const=True,\
+						help='Do not load saved modules from file.')
+	parser.add_argument('-ns', '--no-save', default=False, action='store_const', const=True,\
+						help='Do not save modules to disk after a run.')
 
-Run an experiment. General interface to machine learning scripts. The string parameter is a
-pipeline of scripts that can be executed, with the output of one feed into the input of the next. You
-can specify which computations you want to execute. Store the results of each part of the computation
-to disk.
+	args = parser.parse_args()
 
-Example:
-	The following command runs the preprocess_data, initialise_model and
-train_model scripts, "preprocess_data|initialise_model|train_model" or run the only the train_model
-script but also evaluates its performance "train_model|evaluate_model"
-
-Usage:
-	./run_exp.py "data_set_id" "script|pipe|string" ["path/to/config.ini"]
-		"""
-		sys.exit(1)
-	elif len(sys.argv) <= 3:
-		# Assume the config.ini file is in the same folder
-		e = Experiment(sys.argv[1], sys.argv[2], "./config.ini")
-	else:
-		e = Experiment(sys.argv[1], sys.argv[2], sys.argv[3])
-	e.run()
+	if args.data and len(args.script) > 0:
+		e = Experiment(args.data, args.script, args.config, args.no_cache, args.no_save)
+		e.run()
