@@ -356,7 +356,7 @@ class MaxEntMarkovModel(SequenceModel):
 		"""
 		all_tags = self.tag_count.keys()
 		context = Context((seq, [''] * len(seq)), self.feature_templates)
-		start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 0)) for t in all_tags])
+		start_p = dict([(t, self.potential(t, None, context, 0)) for t in all_tags])
 		prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
 		return tags
 
@@ -364,21 +364,22 @@ class MaxEntMarkovModel(SequenceModel):
 		""" Wrapper interface to the probabilities method. Sets the current and previous labels in the context before
 			calling the method. Used for prediction on the Viterbi and Forward-Backwards algorithms
 		:param label: Current label/tag
-		:param prev_label: previoud label/tag
+		:param prev_label: previous label/tag
 		:param context: Context object
 		:param i: index in the context at which we are getting the probabilities for
 		:return:
 		"""
-		context.labels[i] = label
-		if len(context.sequence) > 1:
-			context.labels[i-1] = prev_label
-		probs = self.probabilities(i, context, self.parameters)
+		tags = context.labels
+		tags[i] = label
+		if len(context.sequence) > 1 and i > 0:
+			tags[i-1] = prev_label
+		# Need to recreate a new Context with the new tags so the features get regenerated.
+		probs = self.probabilities(i, Context((context.words, tags)), self.parameters)
 		return probs[label]
 
 	def tag_probability_distributions(self, unlabeled_sequence):
 		fb = ForwardBackward(self)
-		context = Context((unlabeled_sequence, [''] * len(unlabeled_sequence)))
-		fwd, bkw, posterior = fb.forward_backward(context, self.tag_count.keys())
+		fwd, bkw, posterior = fb.forward_backward(unlabeled_sequence, self.tag_count.keys())
 		print fwd
 		print bkw
 		print posterior
@@ -424,6 +425,11 @@ class CollinsNormalisation(WordNormaliser):
 	# TODO: get top 100 Emoticons
 	EMOS = [':)', ':D', ':(', ';)', ':-)', ':P', '=)', '(:', ';-)', ':/', 'XD', '=D', ':o', '=]', 'D:', ';D', ':]', ':-(', '=/', '=(']
 	RE_DIGITS = re.compile('\d')
+	# See: http://code.tutsplus.com/tutorials/8-regular-expressions-you-should-know--net-6149]
+	# TODO: uses these RegExs
+	URL_REGEX = "/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/"
+	EMAIL_REGEX = "/^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/"
+	IP_ADDRESS_REGEX = "/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/"
 
 	@classmethod
 	def word(cls, word):
@@ -527,8 +533,8 @@ class CollinsNormalisation(WordNormaliser):
 		return "!other"  # weird punctuation etc
 
 
-class HonnibalFeats(SequenceFeaturesTemplate):
-	""" Features nicked from Mathew Honnibal's PerceptronTagger for TextBlob
+class Ratnaparkhi96Features(SequenceFeaturesTemplate):
+	""" Features idenetical to Ratnaparkhi's 1996 paper with a few more suffixes
 	"""
 	LOOK_BEHIND = 2  # passed the beginning
 	LOOK_AHEAD = 2  # after the last word
@@ -543,40 +549,46 @@ class HonnibalFeats(SequenceFeaturesTemplate):
 		"""
 
 		def add(name, *args):
-			features.append(' '.join((name,) + tuple(args)))
+			if not '' in args and not None in args:
+				features.append(' '.join((name,) + tuple(args)))
 
 		def add_suffixes(feature, word, n):
-			if word[-1] != '!' and word[0] != '!':  # i.e. it's a pseudo word TODO: move this to Normalizer class
+			if not Context.is_pseudo(word):  # i.e. it's a pseudo word/class
 				for s in cls.get_suffixes(word, n):
-					add(feature, s)
+					add(feature, s, tag)
 
 		features = []  # Should be a Set but that's too slow :(
 		words, tags = context
+		tag = tags[i]  # tag we're predicting
 		n_suffixes = 4
-		# print i, words, tags
 
-		add('bias')  # It's useful to have a constant feature, which acts sort of like a prior
-		add('i word', words[i])
-		add_suffixes('i suffix', words[i], n_suffixes)
-		add('i pref1', words[i][0])
+		add('i word', words[i], tag)
+		add('i-1 word', words[i-1], tag)
+		add('i-2 word', words[i-2], tag)
+		add('i+1 word', words[i+1], tag)
+		add('i+2 word', words[i+2], tag)
 
-		add('i-1 word', words[i - 1])
-		if i > HonnibalFeats.LOOK_BEHIND:
-			add_suffixes('i-1 suffix', words[i-1], n_suffixes)
-		if tags[i - 1] is not None:
-			add('i-1 tag', tags[i-1])
-		add('i-1 tag & i word', tags[i - 1], words[i])
+		# Bigram's
+		add('i-2 word,i-1 word', words[i-2], words[i-1], tag)
+		add('i-1 word,i word', words[i-1], words[i], tag)
+		add('i word,i+1 word', words[i], words[i+1], tag)
+		add('i+1 word,i+2 word', words[i+1], words[i+2], tag)
 
-		add('i-2 word', words[i - 2])
-		if tags[i - 2] is not None:
-			add('i-2 tag', tags[i - 2])
-		if tags[i - 2] is not None and tags[i - 1] is not None:
-			add('i tag & i-2 tag', tags[i - 1], tags[i - 2])
+		# Current Tag
+		add('i tag ', tag)
 
-		add('i+1 word', words[i + 1])
-		if i < len(words) - HonnibalFeats.LOOK_AHEAD - 1:
-			add_suffixes('i+1 suffix', words[i+1], n_suffixes)
-		add('i+2 word', words[i + 2])
+		# Bigram tags (skip-grams?)
+		add('i-1 tag, i tag', tags[i-1], tag)
+		add('i-2 tag, i tag', tags[i-2], tag)
+		add('i+1 tag, i tag', tags[i+1], tag)
+		add('i+2 tag, i tag', tags[i+2], tag)
+
+		# Tri-gram tags
+		add('i-2 tag,i-1 tag,i tag', tags[i-2], tags[i-1], tag)
+		add('i-1 tag,i tag,i+1 tag', tags[i-1], tag, tags[i+1])
+		add('i tag,i+1 tag,i+2 tag', tag, tags[i+1], tags[i+2])
+
+		add_suffixes('i word suffix', words[i], n_suffixes)
 
 		return features
 
@@ -586,17 +598,17 @@ class Context(object):
 	The main idea of this class is to reduce the number of times feature_templates.get() and zip(*sequence) are called.
 	"""
 	# Symbol added to the beginning and end of the sequence so we don't fall of the edges """
-	BEGIN_SYMBOL = '*'
-	END_SYMBOL = '$'
+	BEGIN_SYMBOL = '!START!'
+	END_SYMBOL = '!END!'
 
-	def __init__(self, sequence, feature_templates=HonnibalFeats):
+	def __init__(self, sequence, feature_templates=Ratnaparkhi96Features):
 		"""
 		:param sequence: List of tuples of the form (word, label) or a tuple of 2 lists (words, labels)
 		:param feature_templates: A SequenceFeaturesTemplate object
 		:return:
 		"""
 		extra = feature_templates.LOOK_BEHIND
-		BEGIN = [Context.BEGIN_SYMBOL * i for i in range(1, extra+1)]
+		BEGIN = list(reversed([Context.BEGIN_SYMBOL * i for i in range(1, extra+1)]))
 		END = [Context.END_SYMBOL * i for i in range(1, feature_templates.LOOK_AHEAD+1)]
 		if isinstance(sequence, tuple):
 			self.words, self.labels = sequence
@@ -615,6 +627,13 @@ class Context(object):
 	def get_features(self, i, label):
 		return [f + " " + label for f in self.features[i]]  # merge the feature set with the label
 
+	@classmethod
+	def is_pseudo(cls, thing):
+		""" Is it a START/END tag or a Normalised class
+		:param thing: String to check
+		:return: Boolean
+		"""
+		return True if thing[-1] != '!' and thing[0] != '!' else False
 
 class ForwardBackward(object):
 	""" The forward-backward algorithm can be used to find the most likely state for any point in time. It cannot,
@@ -625,21 +644,31 @@ class ForwardBackward(object):
 		self.model = model  # needs to implement interface: potential(state_from, state_to, context_index)
 
 	def p(self, state_from, state_to, seq, i):
-		tags = [''] * len(seq)
-		tags[i] = state_to
-		tags[i-1] = state_from
-		context  = Context(zip(seq, tags))  # TODO How do we build the context without tag sequence?
+		context  = Context((seq, [''] * len(seq)))
 		return self.model.potential(state_to, state_from, context, i)
 
-	def forward_backward(self, context, states):
+	def forward_backward(self, unlabeled_sequence, states):
 		""" Run the forwards-backwards algorithm
 		:param context: Context object
 		:param states: list of all possible states/tags
 		:return:
 		"""
 		# TODO We can do better initial states here but need start tokens from Context object
-		start = self.model.probabilities(0, context)
-		return self.fwd_bkw(context, states, start, SortedDict.fromkeys(states, 1.0))
+		start = {}
+		for st in states:
+			tags = ['']*len(unlabeled_sequence)
+			tags[0] = st
+			context = Context((unlabeled_sequence, tags))
+			start[st] = self.model.probabilities(0, context)[st]
+		end = {}
+		for st in states:
+			m = len(unlabeled_sequence)
+			tags = [''] * m
+			tags[m-1] = st
+			context = Context((unlabeled_sequence, tags))
+			end[st] = self.model.probabilities(m-1, context)[st]
+
+		return self.fwd_bkw(context, states, start, end)
 
 	def fwd_bkw(self, context, states, start, end):
 		""" Iterative version of the Forward-Backwards algorithm
@@ -658,51 +687,52 @@ class ForwardBackward(object):
 
 		fwd = []
 		f_prev = {}
-		for i, x_i in enumerate(seq):
+		for i, _ in enumerate(seq):
 			f_curr = {}
 			for st in states:
 				if i == 0:
 					# base case for the forward part
-					f_curr[st] = start[st]
+					f_curr = start
+					break
 				else:
 					f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in states)
-
 			f_curr = normalize(f_curr)
-
 			# iterate (instead of recurs)
 			fwd.append(f_curr)
 			f_prev = f_curr
-
-		z = sum(f_curr[k] * self.p(k, st, seq, i) for k in states)  # normalizer for the posteriors
+		print pandas.DataFrame(fwd).to_string()
+		#z = sum([fwd[m-1][k] for k in states])  # normalizer for the posteriors
 
 		# Backward part of the algorithm
 		# the probability of observing the remaining observations given any starting point k
 
 		bkw = []
 		b_prev = {}
-		for i, x_i_plus in enumerate(reversed(seq[1:] + [None])):
+		# for i, x_i_plus in enumerate(reversed(seq[1:] + [None])):
+		for i in range(m-1, 0, -1):
 			b_curr = {}
 			for st in states:
-				if i == 0:
+				if i == m-1:
 					# base case for backward part
-					b_curr[st] = end[st]
+					b_curr = end
+					break
 				else:
-					b_curr[st] = sum(self.p(st, l, seq, i) * b_prev[l] for l in states)
-
+					b_curr[st] = sum([self.p(st, l, seq, i) * b_prev[l] for l in states])
 			b_curr = normalize(b_curr)
-
 			# iterate
 			bkw.insert(0, b_curr)
 			b_prev = b_curr
 
-		#p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states) # Transition to first state?
+		print pandas.DataFrame(bkw).to_string()
+		#p_bkw = sum(bkw[0][l] for l in states) # Transition to first state?
 
 		# merging the two parts
 		posterior = []
 		for i in range(m):
-			posterior.append({st: fwd[i][st] * bkw[i][st] / z for st in states})
-
-		#assert z == p_bkw
+			posterior.append({st: fwd[i][st] * bkw[i][st] for st in states})
+		posterior = normalize(posterior)
+		print pandas.DataFrame(posterior).to_string()
+		# assert z == p_bkw
 		return fwd, bkw, posterior
 
 

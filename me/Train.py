@@ -6,7 +6,7 @@ MaxEnt Markov Model training
 
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
-from lib.MaxEntMarkovModel import MaxEntMarkovModel, HonnibalFeats, CollinsNormalisation
+from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 import os
 
 class Train(MachineLearningModule):
@@ -21,7 +21,7 @@ class Train(MachineLearningModule):
 		print "Training MaxEnt model..."
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		data_file = self.config('training_file')  # use smaller set for development
-		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), HonnibalFeats, CollinsNormalisation, 0.1)
+		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), Ratnaparkhi96Features, CollinsNormalisation, 0.1)
 
 		path = self.working_dir()
 		# saved_features = path + '/' + self.get_save_file_name('_features')
