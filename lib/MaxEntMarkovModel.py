@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 __author__ = "Alexander Whillas <whillas@gmail.com>"
 
 import re
@@ -427,9 +428,9 @@ class CollinsNormalisation(WordNormaliser):
 	RE_DIGITS = re.compile('\d')
 	# See: http://code.tutsplus.com/tutorials/8-regular-expressions-you-should-know--net-6149]
 	# TODO: uses these RegExs
-	URL_REGEX = "/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/"
-	EMAIL_REGEX = "/^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/"
-	IP_ADDRESS_REGEX = "/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/"
+	URL_REGEX = re.compile("http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+")
+	EMAIL_REGEX = re.compile("^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$")
+	IP_ADDRESS_REGEX = re.compile("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")
 
 	@classmethod
 	def word(cls, word):
@@ -448,15 +449,7 @@ class CollinsNormalisation(WordNormaliser):
 		if len(word) > 1 \
 				and "'" not in word \
 				and '-' not in word:
-			if word.count('@') == 1:  # poor mans email spotter
-				# TODO: better email addresses detection
-				return '!emailAddress!'
-			elif word.lower().startswith('http') \
-					or word.lower().startswith('www.') \
-					or word.lower().endswith('.com'):  # poor mans URL
-				# TODO: better URLs detection
-				return '!url!'
-			elif all(i in string.punctuation for i in word):
+			if all(i in string.punctuation for i in word):
 				return '!allPunctuation!'
 			elif not all(i in string.letters for i in word):
 				# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
@@ -485,11 +478,13 @@ class CollinsNormalisation(WordNormaliser):
 			See Michael Collins' NLP Coursera notes, chap.2
 			:rtype: str
 		"""
-
-		def contains_digits(d):
-			return bool(cls.RE_DIGITS.search(d))
-
-		if contains_digits(word):
+		if bool(cls.URL_REGEX.search(word)):
+			print '!url!', word
+			return '!url!'
+		elif bool(cls.EMAIL_REGEX.search(word)):
+			print '!email!', word
+			return '!email!'
+		elif bool(cls.RE_DIGITS.search(word)):  # contains digits
 			if word.isdigit():
 				if len(word) == 2:
 					return '!twoDigitNum!'
