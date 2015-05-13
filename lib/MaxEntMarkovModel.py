@@ -298,57 +298,103 @@ class MaxEntMarkovModel(SequenceModel):
 			return array(dV.values())
 
 		# Maximise, actually.
-		result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=self.parameters.values(), method='L-BFGS-B', options={'maxiter': maxiter})
+		params = self.parameters.values()
+		if len(params) > 0:
+			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
+							  method='L-BFGS-B', options={'maxiter': maxiter})
+		else:
+			print "No parameters to optimise!?"
+			return False
 
 		self.parameters = SortedDict(izip(self.learnt_features_full.iterkeys(), result.x.tolist()))
 		if not result.success:
 			print result.message
 		return True
 
-	def label(self, unlabeled_sequence):
-		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
+	def for_all(self, sequence_list, tagger, output_file = None):
+		""" Loops though a list of sequences and applies the given function to each to get the corresponding tags.
+			Also handles printing output.
+		:param sequence_list: List of unlabeled sequences
+		:param f: function to generate tags for each item/word in a sequence
+		:param output_file: print the results to a file if given
+		:return:
+		"""
+		out = []
+		for i, unlabeled_sequence in enumerate(sequence_list, start=1):
+			print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/len(sequence_list) * 100)
+
+			t0 = time.time()
+			normalised_seq = self.normaliser.sentence(unlabeled_sequence)
+			tags = tagger(normalised_seq)
+			t1 = time.time()
+
+			print matrix_to_string([unlabeled_sequence, normalised_seq, tags])
+			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(unlabeled_sequence)), "\n"
+			out += [zip(unlabeled_sequence, tags)]
+		return out
+
+	def frequency_tag(self, unlabeled_sequence):
+		""" Label with the highest frequency word label (base line)
 		:param unlabeled_sequence: List of sentences, which are lists of words.
 		:return: List if labeled sentences: lists of (word, tag) tuple pairs.
 		"""
+		highest_freq_tag = max(self.tag_count.iterkeys(), key=(lambda key: self.tag_count[key]))
+		tags = []
+		for word in unlabeled_sequence:
+			if word in self.word_tag_count:
+				best = max(self.word_tag_count[word].iterkeys(), key=(lambda key: self.word_tag_count[word][key]))
+				tags += [best]
+			else:
+				# unseen word TODO: calculate an Unseen Word distribution using the CV set?
+				tags += [highest_freq_tag]
+		return tags
 
-		def print_sol(words, predicted):
-			row_format = ''
-			for k, w in enumerate(words):
-				row_format += "{"+str(k+1)+":<"+str(max(len(w), len(predicted[k]))+1)+"}"
-			print row_format.format("words: ", *words)
-			print row_format.format("tagged:", *predicted)
-
-		out = []
+	def label(self, seq):
+		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
+		:param seq: Lists of words to tag
+		:return: List of tags.
+		"""
 		all_tags = self.tag_count.keys()
-		for i, raw_seq in enumerate(unlabeled_sequence, start=1):
-			print "\nSentence {0} ({1:2.2f}%)".format(i, float(i)/len(unlabeled_sequence) * 100)
-			seq = self.normaliser.sentence(raw_seq)
-			t0 = time.time()
-			context = Context((seq, [''] * len(seq)), self.feature_templates)
-			start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 0)) for t in all_tags])
-			prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
-			t1 = time.time()
-			print_sol(seq, tags)
-			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(seq))
-			out.append(zip(raw_seq, tags))
-		return out
+		context = Context((seq, [''] * len(seq)), self.feature_templates)
+		start_p = dict([(t, self.potential(t, Context.BEGIN_SYMBOL, context, 0)) for t in all_tags])
+		prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
+		return tags
 
 	def potential(self, label, prev_label, context, i):
+		""" Wrapper interface to the probabilities method. Sets the current and previous labels in the context before
+			calling the method. Used for prediction on the Viterbi and Forward-Backwards algorithms
+		:param label: Current label/tag
+		:param prev_label: previoud label/tag
+		:param context: Context object
+		:param i: index in the context at which we are getting the probabilities for
+		:return:
+		"""
 		context.labels[i] = label
 		if len(context.sequence) > 1:
 			context.labels[i-1] = prev_label
 		probs = self.probabilities(i, context, self.parameters)
 		return probs[label]
 
-	def probabilities(self, i, context, v):
+	def tag_probability_distributions(self, unlabeled_sequence):
+		fb = ForwardBackward(self)
+		context = Context((unlabeled_sequence, [''] * len(unlabeled_sequence)))
+		fwd, bkw, posterior = fb.forward_backward(context, self.tag_count.keys())
+		print fwd
+		print bkw
+		print posterior
+
+	def probabilities(self, i, context, v=None):
 		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
 			sentence/sequence with a given feature.
 			aka softmax function
 		:param i: int. position in the context
 		:param context: Context object.
-		:param v: dict. parameter weight vector for each feature
-		:return: dict. of class->float
+		:param v: dict. parameter weight vector for each feature. Defaults to the current version in the model.
+		:return: dict. of label->probability at the given index in the context
 		"""
+		if v is None:
+			v = self.parameters
+
 		class_probabilities = dict()
 		for label in self.tag_count.iterkeys():
 			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
@@ -571,28 +617,44 @@ class Context(object):
 
 
 class ForwardBackward(object):
+	""" The forward-backward algorithm can be used to find the most likely state for any point in time. It cannot,
+		however, be used to find the most likely sequence of states (see Viterbi algorithm).
+	"""
 
 	def __init__(self, model):
-		self.model = model  # needs to implement interface with potential(state_from, state_to, context_index)
+		self.model = model  # needs to implement interface: potential(state_from, state_to, context_index)
 
-	def p(self, state_from, state_to, context, i):
+	def p(self, state_from, state_to, seq, i):
+		tags = [''] * len(seq)
+		tags[i] = state_to
+		tags[i-1] = state_from
+		context  = Context(zip(seq, tags))  # TODO How do we build the context without tag sequence?
 		return self.model.potential(state_to, state_from, context, i)
 
-	def forward_backward(self, seq, states):
-		return self.fwd_bkw(seq, states, [1.0] * len(states), [1.0] * len(states))
+	def forward_backward(self, context, states):
+		""" Run the forwards-backwards algorithm
+		:param context: Context object
+		:param states: list of all possible states/tags
+		:return:
+		"""
+		# TODO We can do better initial states here but need start tokens from Context object
+		start = self.model.probabilities(0, context)
+		return self.fwd_bkw(context, states, start, SortedDict.fromkeys(states, 1.0))
 
-	def fwd_bkw(self, seq, states, start, end):
+	def fwd_bkw(self, context, states, start, end):
 		""" Iterative version of the Forward-Backwards algorithm
 			Taken from Wikipedia
-		:param seq: input (observation) sequence (sentence)
+		:param context: observation sequence (sentence), this is a Context object.
 		:param states: states
 		:param start: start probability
 		:param end: end state
 		:return: forward and backward probabilities + posteriors
 		"""
+		seq = context.words
 		m = len(seq)
 
 		# Forward part of the algorithm
+		# the probability of ending up in any particular state given the first k observations in the sequence
 
 		fwd = []
 		f_prev = {}
@@ -601,30 +663,31 @@ class ForwardBackward(object):
 			for st in states:
 				if i == 0:
 					# base case for the forward part
-					prev_f_sum = start[st]
+					f_curr[st] = start[st]
 				else:
-					prev_f_sum = sum(f_prev[k] * self.p(k, st, i) for k in states)
+					f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in states)
 
 			f_curr = normalize(f_curr)
 
-			# iterate (instead of recurse)
+			# iterate (instead of recurs)
 			fwd.append(f_curr)
 			f_prev = f_curr
 
-		z = sum(f_curr[k] for k in states)  # normalizer for the posteriors
+		z = sum(f_curr[k] * self.p(k, st, seq, i) for k in states)  # normalizer for the posteriors
 
 		# Backward part of the algorithm
+		# the probability of observing the remaining observations given any starting point k
 
 		bkw = []
 		b_prev = {}
-		for i, x_i_plus in enumerate(reversed(seq[1:] + (None,))):
+		for i, x_i_plus in enumerate(reversed(seq[1:] + [None])):
 			b_curr = {}
 			for st in states:
 				if i == 0:
 					# base case for backward part
 					b_curr[st] = end[st]
 				else:
-					b_curr[st] = sum(self.p(st, l, i) * b_prev[l] for l in states)
+					b_curr[st] = sum(self.p(st, l, seq, i) * b_prev[l] for l in states)
 
 			b_curr = normalize(b_curr)
 
@@ -632,14 +695,14 @@ class ForwardBackward(object):
 			bkw.insert(0, b_curr)
 			b_prev = b_curr
 
-		# p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states) # Transition to first state?
+		#p_bkw = sum(start[l] * e[l][seq[0]] * b_curr[l] for l in states) # Transition to first state?
 
 		# merging the two parts
 		posterior = []
 		for i in range(m):
 			posterior.append({st: fwd[i][st] * bkw[i][st] / z for st in states})
 
-		#assert p_fwd == p_bkw
+		#assert z == p_bkw
 		return fwd, bkw, posterior
 
 
