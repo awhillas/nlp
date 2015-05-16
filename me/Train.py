@@ -17,27 +17,30 @@ class Train(MachineLearningModule):
 	def run(self, _):
 
 		# Training the model
-
 		print "Training MaxEnt model..."
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		data_file = self.config('training_file')  # use smaller set for development
-		self.model = MaxEntMarkovModel(data.tagged_sents(data_file), Ratnaparkhi96Features, CollinsNormalisation, 0.1)
 
-		path = self.working_dir()
-		# saved_features = path + '/' + self.get_save_file_name('_features')
-		saved_params = path + '/' + self.get_save_file_name('_parameters')
+		# Get data
+
+		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		training_data = data.tagged_sents(self.config('training_file'))
+		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
 
 		# Learn features
 
-		self.model.train()
+		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
+		self.model.train(training_data)
+		print "Features:", len(self.model.weights)
 
-		# Learn feature weights (incrementally... in case we overheat and crash :-/)
+		# Learn feature weights
+
 		# TODO Use the CV training set to tune the regularization_parameter of the MaxEntMarkovModel i.e. smaller param. learning cycles
 
 		iterations = int(self.config('iterations'))
+		self.load(filename_prefix="_params")
 		for i in range(0, iterations):
-			print "Iteration set #", i+1
-			not self.model.learn_parameters(maxiter=3)
+			print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
+			self.model.learn_parameters(training_data, regularization=0.5, maxiter=2)
+			self.save(filename_prefix="_params")
 
 		# TODO: Use cross-validation set to tune the regularization param.
 

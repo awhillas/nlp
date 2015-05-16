@@ -8,8 +8,10 @@ class Experiment:
 	def __init__(self, data_set_id, scripts_pipe, config_file, no_cache, no_save):
 		self.data_set_id = data_set_id
 		self.scripts_pipe = scripts_pipe
+		
 		self.config = ConfigParser.SafeConfigParser()
 		self.config.read(config_file)
+		
 		today = date.fromtimestamp(time.time())
 		self.working_dir = '/'.join([self.config.get(data_set_id, 'working'), today.isoformat(), self.data_set_id])
 		self.no_cache = no_cache
@@ -63,6 +65,8 @@ if __name__ == "__main__":
 	""")
 	parser.add_argument('data',\
 						help="Section ID in the config file that points to the experiment variables.")
+	parser.add_argument('-n', '--name',\
+						help="Descriptive name used to label the output and working sets.")
 	parser.add_argument('script', nargs='+',\
 						help="Script pipe, an ordered list of scripts to run.")
 	parser.add_argument('-c', '--config', default='./config.ini',\

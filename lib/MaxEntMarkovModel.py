@@ -151,8 +151,25 @@ class WordNormaliser(object):
 	Handles normalisation of words. Used to close vocabulary.
 	"""
 
-	def __init__(self):
+	def __init__(self, data):
+		self._data = data
+		self._index = 0
 		pass
+
+	# iterator behavior
+
+	def __iter__(self):
+		return self
+
+	def next(self):
+		if self._index >= len(self._data):
+			raise StopIteration
+		words, labels = map(list, zip(*self._data[self._index]))
+		self._index += 1
+		return zip(self.sentence(words), labels)
+
+	def __next__(self):
+		return next()
 
 	@classmethod
 	def all(cls, data):
@@ -180,6 +197,8 @@ class WordNormaliser(object):
 		raise NotImplementedError("Should have implemented this")
 
 
+
+
 # Implementations
 #  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -198,7 +217,7 @@ class MaxEntMarkovModel(SequenceModel):
 		features which are passed on via th context.
 	"""
 
-	def __init__(self, data, feature_templates, word_normaliser, regularization_parameter=0.5):
+	def __init__(self, feature_templates, word_normaliser):
 		"""
 		:param feature_templates: Instance of SequenceFeaturesTemplate
 		:param word_normaliser: Instance of WordNormaliser
@@ -208,11 +227,11 @@ class MaxEntMarkovModel(SequenceModel):
 		super(MaxEntMarkovModel, self).__init__()
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
-		self.normalised_data = self.normaliser.all(data)
-		self.regularization_parameter = regularization_parameter
+		#self.normalised_data = self.normaliser.all(data)
+		#self.regularization_parameter = regularization_parameter
 		self.learnt_features = SortedDict()  # all features broken down into counts for each label
 		self.learnt_features_full = SortedDict()  # full features including labels
-		self.parameters = SortedDict()  # lambdas aka weights aka model parameters
+		self.weights = SortedDict()  # lambdas aka feature weights aka model parameters
 		self.total = 0  # Total words seen in training corpus
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
@@ -223,15 +242,12 @@ class MaxEntMarkovModel(SequenceModel):
 		else:
 			return self.tag_count.keys()
 
-	def train(self, data=None):
+	def train(self, data):
 		"""
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: true on success, false otherwise
 		"""
-		if data is None:
-			data = self.normalised_data
-
-		for sentence in data:
+		for sentence in self.normaliser(data):
 			context = Context(sentence, self.feature_templates)
 			for i, word in enumerate(context.words):
 				label = context.labels[i]
@@ -243,37 +259,37 @@ class MaxEntMarkovModel(SequenceModel):
 				for f in context.get_features(i, label):
 					self.learnt_features_full.setdefault(f, 0)
 					self.learnt_features_full[f] += 1
-					self.parameters.setdefault(f, 1.0)  # initial default to 1.0
+					self.weights.setdefault(f, 1.0)  # initial default to 1.0
 
-	def learn_parameters(self, data=None, maxiter=20):
+	def learn_parameters(self, data, regularization=0.5, maxiter=20):
 		""" Learn the parameter vector (weights) for the model
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: True on success, False otherwise
 		"""
 		print "Estimating parameters"
 
-		if data is None:
-			data = self.normalised_data
+		normaised_data = self.normaliser(data)
 
 		def objective(x):  # Objective function
-			v = SortedDict(izip(self.parameters.iterkeys(), x))
+			v = SortedDict(izip(self.weights.iterkeys(), x))
 			log_p = 0.0
-			for seq in data:
-				for i, (word, label) in enumerate(seq):
-					probabilities = self.probabilities(i, Context(seq, self.feature_templates), v)
+			for seq in normaised_data:
+				context = Context(seq, self.feature_templates)
+				for i, (_, label) in enumerate(seq):
+					probabilities = self.probabilities(i, context, v)
 					log_p += log(probabilities[label])
 
 			# Regularization
-			regulatiser = sum([param * param for param in v.itervalues()]) * (self.regularization_parameter / 2)
+			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
 
-			print "{:>8.2f} - {:>8.2f} = {:>8.2f}".format(log_p, regulatiser, log_p - regulatiser)
+			print "{:>10.3f} - {:>10.3f} = {:>10.2f}".format(log_p, regulatiser, log_p - regulatiser)
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
 			""" Inverse (coz we want the max. not min.) of the Gradient of the objective
 			"""
-			v = SortedDict(izip(self.parameters.iterkeys(), x))  # current param. vector
-			dV = SortedDict.fromkeys(self.parameters.iterkeys(), 0.0)  # gradient vector output
+			v = SortedDict(izip(self.weights.iterkeys(), x))  # current param. vector
+			dV = SortedDict.fromkeys(self.weights.iterkeys(), 0.0)  # gradient vector output
 
 			# Expected/predicted feature counts
 
@@ -294,12 +310,12 @@ class MaxEntMarkovModel(SequenceModel):
 
 			for f, count in self.learnt_features_full.iteritems():
 				dV[f] -= count
-				dV[f] += v[f] * self.regularization_parameter
+				dV[f] += v[f] * regularization
 
 			return array(dV.values())
 
 		# Maximise, actually.
-		params = self.parameters.values()
+		params = self.weights.values()
 		if len(params) > 0:
 			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
 							  method='L-BFGS-B', options={'maxiter': maxiter})
@@ -307,7 +323,7 @@ class MaxEntMarkovModel(SequenceModel):
 			print "No parameters to optimise!?"
 			return False
 
-		self.parameters = SortedDict(izip(self.learnt_features_full.iterkeys(), result.x.tolist()))
+		self.weights = SortedDict(izip(self.learnt_features_full.iterkeys(), result.x.tolist()))
 		if not result.success:
 			print result.message
 		return True
@@ -375,7 +391,7 @@ class MaxEntMarkovModel(SequenceModel):
 		if len(context.sequence) > 1 and i > 0:
 			tags[i-1] = prev_label
 		# Need to recreate a new Context with the new tags so the features get regenerated.
-		probs = self.probabilities(i, Context((context.words, tags)), self.parameters)
+		probs = self.probabilities(i, Context((context.words, tags)), self.weights)
 		return probs[label]
 
 	def tag_probability_distributions(self, unlabeled_sequence):
@@ -395,7 +411,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:return: dict. of label->probability at the given index in the context
 		"""
 		if v is None:
-			v = self.parameters
+			v = self.weights
 
 		class_probabilities = dict()
 		for label in self.tag_count.iterkeys():
@@ -420,8 +436,8 @@ class MaxEntMarkovModel(SequenceModel):
 class CollinsNormalisation(WordNormaliser):
 	""" Normalisations taken from Michel Collins notes
 		'Chapter 2: Tagging problems and Hidden Markov models'
+		TODO: make normaiser iterable to save memoery.
 	"""
-
 	# Top 20 Emoticons: http://www.datagenetics.com/blog/october52012/index.html
 	# TODO: get top 100 Emoticons
 	EMOS = [':)', ':D', ':(', ';)', ':-)', ':P', '=)', '(:', ';-)', ':/', 'XD', '=D', ':o', '=]', 'D:', ';D', ':]', ':-(', '=/', '=(']
@@ -469,6 +485,7 @@ class CollinsNormalisation(WordNormaliser):
 					# TODO: handle smiles
 					# print '!mixedUp!', word
 					return '!mixedUp!'
+
 		return word.lower()
 
 	@classmethod
@@ -482,7 +499,7 @@ class CollinsNormalisation(WordNormaliser):
 			# print '!email!', word
 			return '!email!'
 		elif bool(cls.URL_REGEX.search(word)):
-			print '!url!', word
+			#print '!url!', word
 			return '!url!'
 		elif bool(cls.RE_DIGITS.search(word)):  # contains digits
 			if word.isdigit():
@@ -557,31 +574,31 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 		tag = tags[i]  # tag we're predicting
 		n_suffixes = 4
 
-		add('i word', words[i], tag)
-		add('i-1 word', words[i-1], tag)
-		add('i-2 word', words[i-2], tag)
-		add('i+1 word', words[i+1], tag)
-		add('i+2 word', words[i+2], tag)
+		add('i word & i tag', words[i], tag)
+		add('i-1 word & i tag', words[i-1], tag)
+		add('i-2 word & i tag', words[i-2], tag)
+		add('i+1 word & i tag', words[i+1], tag)
+		add('i+2 word & i tag', words[i+2], tag)
 
 		# Bigram's
-		add('i-2 word,i-1 word', words[i-2], words[i-1], tag)
-		add('i-1 word,i word', words[i-1], words[i], tag)
-		add('i word,i+1 word', words[i], words[i+1], tag)
-		add('i+1 word,i+2 word', words[i+1], words[i+2], tag)
+		add('i-2 word, i-1 word & i tag', words[i-2], words[i-1], tag)
+		add('i-1 word, i word & i tag', words[i-1], words[i], tag)
+		add('i word, i+1 word & i tag', words[i], words[i+1], tag)
+		add('i+1 word, i+2 word & i tag', words[i+1], words[i+2], tag)
 
 		# Current Tag
-		add('i tag ', tag)
+		#add('i tag ', tag)  # does this add too much weight to more frequent tags?
 
 		# Bigram tags (skip-grams?)
-		add('i-1 tag, i tag', tags[i-1], tag)
-		add('i-2 tag, i tag', tags[i-2], tag)
-		add('i+1 tag, i tag', tags[i+1], tag)
-		add('i+2 tag, i tag', tags[i+2], tag)
+		add('i-1 tag & i tag', tags[i-1], tag)
+		add('i-2 tag & i tag', tags[i-2], tag)
+		add('i+1 tag & i tag', tags[i+1], tag)
+		add('i+2 tag & i tag', tags[i+2], tag)
 
 		# Tri-gram tags
-		add('i-2 tag,i-1 tag,i tag', tags[i-2], tags[i-1], tag)
-		add('i-1 tag,i tag,i+1 tag', tags[i-1], tag, tags[i+1])
-		add('i tag,i+1 tag,i+2 tag', tag, tags[i+1], tags[i+2])
+		add('i-2 tag, i-1 tag, i tag', tags[i-2], tags[i-1], tag)
+		add('i-1 tag, i tag, i+1 tag', tags[i-1], tag, tags[i+1])
+		add('i tag, i+1 tag, i+2 tag', tag, tags[i+1], tags[i+2])
 
 		add_suffixes('i word suffix', words[i], n_suffixes)
 

@@ -18,7 +18,7 @@ class MachineLearningModule:  # Interface.
 		pipelines or if it is redundant to keep recalculating the same thing.
 	"""
 
-	def __init__(self, config, data_set_id):
+	def __init__(self, config, data_set_id, experiment = {}):
 		"""
 		:param config: Instance of ConfigParser.
 		:param data_set_id: data set ID which should be a group in the .ini file
@@ -26,6 +26,7 @@ class MachineLearningModule:  # Interface.
 		self.input_module = None
 		self._config = config
 		self._data_id = data_set_id
+		self._output = experiment  # general storage
 		print self.__class__
 
 	def run(self, previous):
@@ -53,8 +54,11 @@ class MachineLearningModule:  # Interface.
 			Instead of of run()?
 		"""
 		if path is None:
-			path  = self.working_dir()
+			path  = self.working_dir()			
 		full_path = path+ '/' + self.get_save_file_name(filename_prefix)
+		if not os.path.exists(full_path):
+			print "Could not load", full_path
+			return False
 		data = open(full_path, 'rb')
 		tmp_dict = pickle.load(data)
 		data.close()
