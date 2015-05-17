@@ -9,7 +9,7 @@ from sortedcontainers import SortedDict  # see http://www.grantjenks.com/docs/so
 from scipy.optimize import minimize
 from itertools import izip, izip_longest
 from scipy import array
-import time
+import pandas
 
 # Common functions
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -38,37 +38,6 @@ def print_dptable(V, seq):
 	for tag, values in inv.iteritems():
 		row = [tag] + values
 		print row_format.format(*row)
-
-
-class color:
-	""" http://stackoverflow.com/questions/8924173/how-do-i-print-bold-text-in-python
-		usage: print color.BOLD + 'Hello World !' + color.END
-	"""
-	PURPLE = '\033[95m'
-	CYAN = '\033[96m'
-	DARKCYAN = '\033[36m'
-	BLUE = '\033[94m'
-	GREEN = '\033[92m'
-	YELLOW = '\033[93m'
-	RED = '\033[91m'
-	BOLD = '\033[1m'
-	UNDERLINE = '\033[4m'
-	END = '\033[0m'
-
-
-def matrix_to_string(matrix):
-	# Figure out the max width of each column
-	widths = [0] * len(matrix[0])
-	for col in range(len(matrix[0])):
-		for row in matrix:
-			if len(row[col]) > widths[col]:
-				widths[col] = len(row[col])
-	# Generate a row format string
-	row_format = ' '.join(["{:"+str(l)+"}" for l in widths])  # align'd right
-	output = []
-	for row in matrix:
-		output += [row_format.format(*row)]
-	return "\n".join(output)
 
 
 # Interfaces
@@ -227,8 +196,6 @@ class MaxEntMarkovModel(SequenceModel):
 		super(MaxEntMarkovModel, self).__init__()
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
-		#self.normalised_data = self.normaliser.all(data)
-		#self.regularization_parameter = regularization_parameter
 		self.learnt_features = SortedDict()  # all features broken down into counts for each label
 		self.learnt_features_full = SortedDict()  # full features including labels
 		self.weights = SortedDict()  # lambdas aka feature weights aka model parameters
@@ -328,28 +295,6 @@ class MaxEntMarkovModel(SequenceModel):
 			print result.message
 		return True
 
-	def for_all(self, sequence_list, tagger, output_file = None):
-		""" Loops though a list of sequences and applies the given function to each to get the corresponding tags.
-			Also handles printing output.
-		:param sequence_list: List of unlabeled sequences
-		:param f: function to generate tags for each item/word in a sequence
-		:param output_file: print the results to a file if given
-		:return:
-		"""
-		out = []
-		for i, unlabeled_sequence in enumerate(sequence_list, start=1):
-			print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/len(sequence_list) * 100)
-
-			t0 = time.time()
-			normalised_seq = self.normaliser.sentence(unlabeled_sequence)
-			tags = tagger(normalised_seq)
-			t1 = time.time()
-
-			print matrix_to_string([unlabeled_sequence, normalised_seq, tags])
-			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(unlabeled_sequence)), "\n"
-			out += [zip(unlabeled_sequence, tags)]
-		return out
-
 	def frequency_tag(self, unlabeled_sequence):
 		""" Label with the highest frequency word label (base line)
 		:param unlabeled_sequence: List of sentences, which are lists of words.
@@ -388,18 +333,14 @@ class MaxEntMarkovModel(SequenceModel):
 		"""
 		tags = context.labels
 		tags[i] = label
-		if len(context.sequence) > 1 and i > 0:
+		if i > 0:
 			tags[i-1] = prev_label
 		# Need to recreate a new Context with the new tags so the features get regenerated.
-		probs = self.probabilities(i, Context((context.words, tags)), self.weights)
-		return probs[label]
+		return self.probabilities(i, Context((context.words, tags)), self.parameters)[label]
 
 	def tag_probability_distributions(self, unlabeled_sequence):
 		fb = ForwardBackward(self)
-		fwd, bkw, posterior = fb.forward_backward(unlabeled_sequence, self.tag_count.keys())
-		print fwd
-		print bkw
-		print posterior
+		return fb.forward_backward(unlabeled_sequence, self.tag_count.keys())
 
 	def probabilities(self, i, context, v=None):
 		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
@@ -647,6 +588,7 @@ class Context(object):
 		"""
 		return True if thing[-1] != '!' and thing[0] != '!' else False
 
+
 class ForwardBackward(object):
 	""" The forward-backward algorithm can be used to find the most likely state for any point in time. It cannot,
 		however, be used to find the most likely sequence of states (see Viterbi algorithm).
@@ -665,17 +607,22 @@ class ForwardBackward(object):
 		:param states: list of all possible states/tags
 		:return:
 		"""
-		# TODO We can do better initial states here but need start tokens from Context object
+		m = len(unlabeled_sequence)
+
+		# Calculate start states
+
 		start = {}
+		tags = [''] * m
 		for st in states:
-			tags = ['']*len(unlabeled_sequence)
 			tags[0] = st
 			context = Context((unlabeled_sequence, tags))
 			start[st] = self.model.probabilities(0, context)[st]
+
+		# Calculate end states
+
 		end = {}
+		tags = [''] * m
 		for st in states:
-			m = len(unlabeled_sequence)
-			tags = [''] * m
 			tags[m-1] = st
 			context = Context((unlabeled_sequence, tags))
 			end[st] = self.model.probabilities(m-1, context)[st]
@@ -691,6 +638,12 @@ class ForwardBackward(object):
 		:param end: end state
 		:return: forward and backward probabilities + posteriors
 		"""
+
+		def show(matrix, name):
+			pd = pandas.DataFrame(matrix).transpose()
+			pd.columns = seq
+			print name, "\n", pd.to_string()
+
 		seq = context.words
 		m = len(seq)
 
@@ -712,8 +665,8 @@ class ForwardBackward(object):
 			# iterate (instead of recurs)
 			fwd.append(f_curr)
 			f_prev = f_curr
-		print pandas.DataFrame(fwd).to_string()
-		#z = sum([fwd[m-1][k] for k in states])  # normalizer for the posteriors
+
+		show(fwd, "Forward:")
 
 		# Backward part of the algorithm
 		# the probability of observing the remaining observations given any starting point k
@@ -721,31 +674,29 @@ class ForwardBackward(object):
 		bkw = []
 		b_prev = {}
 		# for i, x_i_plus in enumerate(reversed(seq[1:] + [None])):
-		for i in range(m-1, 0, -1):
+		for i in range(m, 0, -1):
 			b_curr = {}
 			for st in states:
-				if i == m-1:
+				if i == m:
 					# base case for backward part
 					b_curr = end
 					break
 				else:
-					b_curr[st] = sum([self.p(st, l, seq, i) * b_prev[l] for l in states])
+					b_curr[st] = sum([self.p(st, l, seq, i) * b_prev[l] for l in states])  # TODO this is not working :(
 			b_curr = normalize(b_curr)
-			# iterate
 			bkw.insert(0, b_curr)
-			b_prev = b_curr
+			b_prev = b_curr  # iterate
 
-		print pandas.DataFrame(bkw).to_string()
-		#p_bkw = sum(bkw[0][l] for l in states) # Transition to first state?
+		show(bkw, "Backwards:")
 
 		# merging the two parts
 		posterior = []
 		for i in range(m):
-			posterior.append({st: fwd[i][st] * bkw[i][st] for st in states})
-		posterior = normalize(posterior)
-		print pandas.DataFrame(posterior).to_string()
-		# assert z == p_bkw
-		return fwd, bkw, posterior
+			posterior.append(normalize({st: fwd[i][st] * bkw[i][st] for st in states}))
+
+		show(posterior, "Posteriors")
+		# return fwd, bkw, posterior
+		return posterior
 
 
 class Viterbi(object):

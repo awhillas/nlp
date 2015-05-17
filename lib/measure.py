@@ -79,6 +79,8 @@ class ConfusionMatrix:
 			self.table[key] = SortedDict.fromkeys(classes, 0)
 
 	def add(self, predicted, actual):
+		self.table.setdefault(actual, SortedDict())
+		self.table[actual].setdefault(predicted, 0)
 		self.table[actual][predicted] += 1
 
 	def show(self):

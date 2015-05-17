@@ -14,7 +14,7 @@ from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 
 
-class TextblobTag(MachineLearningModule):
+class Predict(MachineLearningModule):
 	def __init__(self, config, data_set_id):
 		MachineLearningModule.__init__(self, config, data_set_id)
 		self.input_module = 'tb.TextblobTrain'
@@ -28,6 +28,12 @@ class TextblobTag(MachineLearningModule):
 		tagger.load(loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		# generate tags
+		# Using the MaxEnt model
+		self.labeled_sequences = self.model.for_all(
+			data.sents(self.config('testing_file')),
+			self.model.label
+		)
+
 		with open(self.working_dir()+'/'+self.config('output_file'), 'w') as f1:
 			with open(self.working_dir()+'/'+self.config('gold_output'), 'w') as f2:
 				for s in reader.tagged_sents(self.config('testing_file')):
