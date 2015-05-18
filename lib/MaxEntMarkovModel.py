@@ -249,7 +249,7 @@ class MaxEntMarkovModel(SequenceModel):
 			# Regularization
 			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
 
-			print "{:>10.3f} - {:>10.3f} = {:>10.2f}".format(log_p, regulatiser, log_p - regulatiser)
+			print "{:>-10.3f} - {:>-10.3f} = {:>-10.3f} (max:{:>-10.3f}, min:{:>-10.3f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
@@ -283,9 +283,10 @@ class MaxEntMarkovModel(SequenceModel):
 
 		# Maximise, actually.
 		params = self.weights.values()
+		bnds = [(-1000, 1000)] * len(params)  # upper and lower for each var
 		if len(params) > 0:
 			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
-							  method='L-BFGS-B', options={'maxiter': maxiter})
+							  method='L-BFGS-B', options={'maxiter': maxiter}, bounds=bnds)
 		else:
 			print "No parameters to optimise!?"
 			return False
@@ -359,7 +360,7 @@ class MaxEntMarkovModel(SequenceModel):
 			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
 			for feature in context.get_features(i, label):
 				if feature in v:
-					class_probabilities[label] *= exp(v[feature])  # adding exponents is the same as * them
+					class_probabilities[label] += exp(v[feature])  # adding exponents is the same as * them
 		return normalize(class_probabilities)
 
 	def add_tag(self, w, t):
@@ -514,6 +515,8 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 		words, tags = context
 		tag = tags[i]  # tag we're predicting
 		n_suffixes = 4
+
+		add('bias')  # Acts like a prior
 
 		add('i word & i tag', words[i], tag)
 		add('i-1 word & i tag', words[i-1], tag)
