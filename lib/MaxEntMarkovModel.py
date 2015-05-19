@@ -112,7 +112,7 @@ class SequenceFeaturesTemplate(object):
 		if not len(word) > n:
 			n = len(word)
 
-		return [word[-i:] for i in range(1, n)]
+		return [word[-i:] for i in range(1, n+1)]
 
 
 class WordNormaliser(object):
@@ -214,7 +214,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: true on success, false otherwise
 		"""
-		for sentence in self.normaliser(data):
+		for sentence in self.normaliser.all(data):
 			context = Context(sentence, self.feature_templates)
 			for i, word in enumerate(context.words):
 				label = context.labels[i]
@@ -235,7 +235,7 @@ class MaxEntMarkovModel(SequenceModel):
 		"""
 		print "Estimating parameters"
 
-		normaised_data = self.normaliser(data)
+		normaised_data = self.normaliser.all(data)
 
 		def objective(x):  # Objective function
 			v = SortedDict(izip(self.weights.iterkeys(), x))
@@ -253,14 +253,13 @@ class MaxEntMarkovModel(SequenceModel):
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
-			""" Inverse (coz we want the max. not min.) of the Gradient of the objective
-			"""
+			""" Inverse (coz we want the max. not min.) of the Gradient of the objective. """
 			v = SortedDict(izip(self.weights.iterkeys(), x))  # current param. vector
 			dV = SortedDict.fromkeys(self.weights.iterkeys(), 0.0)  # gradient vector output
 
 			# Expected/predicted feature counts
 
-			for n, seq in enumerate(data):
+			for n, seq in enumerate(normaised_data):
 				# print "#", n, (float(n) + 1) / len(data) * 100, "%"
 				context = Context(seq, self.feature_templates)
 
@@ -270,11 +269,11 @@ class MaxEntMarkovModel(SequenceModel):
 					for label in self.tag_count.iterkeys():
 						for feature in context.get_features(i, label):
 							if feature in v:
-								# print "dV[", feature, "] += ", probabilities[label]
+								print "dV[", feature, "] += ", probabilities[label]
 								dV[feature] += probabilities[label]
 
 			# Actual feature counts + regularize
-
+			# Assumption: that the param. training is over the same data set as the feature extraction
 			for f, count in self.learnt_features_full.iteritems():
 				dV[f] -= count
 				dV[f] += v[f] * regularization
@@ -406,7 +405,7 @@ class CollinsNormalisation(WordNormaliser):
 			return '!emoticon!'
 		if len(word) > 1 \
 				and "'" not in word \
-				and '-' not in word:
+				and ('-' not in word or word.count('-') > 1):
 			if all(i in string.punctuation for i in word):
 				return '!allPunctuation!'
 			elif not all(i in string.letters for i in word):
@@ -424,7 +423,6 @@ class CollinsNormalisation(WordNormaliser):
 					# print '!abbreviation', word
 					return '!abbreviation!'
 				else:
-					# TODO: handle smiles
 					# print '!mixedUp!', word
 					return '!mixedUp!'
 
@@ -506,10 +504,10 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 			if not '' in args and not None in args:
 				features.append(' '.join((name,) + tuple(args)))
 
-		def add_suffixes(feature, word, n):
+		def add_suffixes(name, word, n):
 			if not Context.is_pseudo(word):  # i.e. it's a pseudo word/class
 				for s in cls.get_suffixes(word, n):
-					add(feature, s, tag)
+					add(name, s, tag)
 
 		features = []  # Should be a Set but that's too slow :(
 		words, tags = context
@@ -578,10 +576,14 @@ class Context(object):
 		self.words = list(self.words)
 		self.labels = list(self.labels)
 		self.templates = feature_templates
-		self.features = [[f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))] for i, _ in enumerate(self.sequence)]
+		self.features = []  # feature templates for each word position in the sentence
+		for i, _ in enumerate(self.sequence):
+			labels_copy = list(self.labels)
+			labels_copy[i] = '{0}'
+			self.features.append([f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(labels_copy)+END))])
 
 	def get_features(self, i, label):
-		return [f + " " + label for f in self.features[i]]  # merge the feature set with the label
+		return [f.format(label) for f in self.features[i]]  # merge the feature set with the label
 
 	@classmethod
 	def is_pseudo(cls, thing):
@@ -589,7 +591,7 @@ class Context(object):
 		:param thing: String to check
 		:return: Boolean
 		"""
-		return True if thing[-1] != '!' and thing[0] != '!' else False
+		return True if thing[-1] == '!' and thing[0] == '!' else False
 
 
 class ForwardBackward(object):
