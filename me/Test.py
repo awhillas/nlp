@@ -9,7 +9,7 @@ class Test(MachineLearningModule):
 
 	def __init__(self, experiment):
 		MachineLearningModule.__init__(self, experiment)
-		#self.input_module = 'me.Predict'
+		self.input_module = 'me.Predict'
 
 	def run(self, tagger):
 		# TODO: move most of this inside the confusion matrix
@@ -53,7 +53,7 @@ class Test(MachineLearningModule):
 		iterations = int(self.config('iterations'))
 		reg = float(self.config('iterations'))
 		mxitr = int(self.config('iterations'))
-		self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{:03.2f}%,sent-{:03.2f}%.csv".format(i, reg, mxitr, matrix.precision() * 100, float(sents) / len(gold_labeled_sequences) * 100), matrix.csv())
+		self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{3:05.f}%,sent-{4:05.1f}%.csv".format(i, reg, mxitr, matrix.precision() * 100, float(sents) / len(gold_labeled_sequences) * 100), matrix.csv())
 		
 		matrix.show()
 
