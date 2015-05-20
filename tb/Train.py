@@ -8,8 +8,8 @@ from lib.conllu import ConlluReader
 class Train(MachineLearningModule):
 	""" Train Textblob Perceptron on our own data so the results are comparable.
 	"""
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
 		self.model = None
 
 	def run(self, _=None):
@@ -26,8 +26,8 @@ class Train(MachineLearningModule):
 
 		# Train the model
 
-		self.model = PerceptronTagger()
-		self.model.train(sentences=sentences, save_loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
+		model = PerceptronTagger()
+		model.train(sentences=sentences, save_loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		return True
 
@@ -36,6 +36,4 @@ class Train(MachineLearningModule):
 		pass
 
 	def load(self, path):
-		self.model = PerceptronTagger()
-		self.model.load(self.pickle_file())
-		return pt
+		pass

@@ -4,7 +4,7 @@ __author__ = "Alexander Whillas <whillas@gmail.com>"
 import time
 
 """
-MaxEnt Markov Model training
+MaxEnt Markov Model (MEMM) training
 """
 
 from lib.ml_framework import MachineLearningModule
@@ -13,8 +13,8 @@ from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, Coll
 import os
 
 class Train(MachineLearningModule):
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
 		self.model = None
 
 	def run(self, _):
@@ -26,7 +26,6 @@ class Train(MachineLearningModule):
 
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		training_data = data.tagged_sents(self.config('training_file'))
-		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
 
 		# Learn features
 
@@ -49,5 +48,6 @@ class Train(MachineLearningModule):
 			self.save(filename_prefix="_params,iter-{0},reg-{1},maxiter-{2}".format(i, reg, mxitr))
 
 		# TODO: Use cross-validation set to tune the regularization param.
+		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
 
 		return True

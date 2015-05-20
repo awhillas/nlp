@@ -269,7 +269,7 @@ class MaxEntMarkovModel(SequenceModel):
 					for label in self.tag_count.iterkeys():
 						for feature in context.get_features(i, label):
 							if feature in v:
-								print "dV[", feature, "] += ", probabilities[label]
+								# print "dV[", feature, "] += ", probabilities[label]
 								dV[feature] += probabilities[label]
 
 			# Actual feature counts + regularize
@@ -282,7 +282,7 @@ class MaxEntMarkovModel(SequenceModel):
 
 		# Maximise, actually.
 		params = self.weights.values()
-		bnds = [(-1000, 1000)] * len(params)  # upper and lower for each var
+		bnds = [(-700, 700)] * len(params)  # upper and lower for each var max python can exp(*) without overflow
 		if len(params) > 0:
 			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
 							  method='L-BFGS-B', options={'maxiter': maxiter}, bounds=bnds)

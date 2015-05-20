@@ -18,15 +18,14 @@ class MachineLearningModule:  # Interface.
 		pipelines or if it is redundant to keep recalculating the same thing.
 	"""
 
-	def __init__(self, config, data_set_id, experiment = {}):
+	def __init__(self, experiment):
 		"""
 		:param config: Instance of ConfigParser.
 		:param data_set_id: data set ID which should be a group in the .ini file
 		"""
 		self.input_module = None
-		self._config = config
-		self._data_id = data_set_id
-		self._output = experiment  # general storage
+		self._experiment = experiment
+		self._config = experiment.config
 		print self.__class__
 
 	def run(self, previous):
@@ -40,9 +39,8 @@ class MachineLearningModule:  # Interface.
 			Ideally so that a run() can be skipped
 		"""
 		if path is None:
-			path = self.working_dir()
-		self.check_path(path)
-		full_path = path+'/'+self.get_save_file_name(filename_prefix)
+			path = self._experiment.dir('working')
+		full_path = path + '/' + self.get_save_file_name(filename_prefix)
 		f = open(full_path, 'wb')
 		pickle.dump(self.__dict__, f, 2)
 		f.close()
@@ -54,8 +52,8 @@ class MachineLearningModule:  # Interface.
 			Instead of of run()?
 		"""
 		if path is None:
-			path  = self.working_dir()			
-		full_path = path+ '/' + self.get_save_file_name(filename_prefix)
+			path  = self.working_dir()
+		full_path = path + '/' + self.get_save_file_name(filename_prefix)
 		if not os.path.exists(full_path):
 			print "Could not load", full_path
 			return False
@@ -77,36 +75,15 @@ class MachineLearningModule:  # Interface.
 	def pickle_file(self):
 		return self.working_dir() + '/' + self.get_save_file_name()
 
-	def working_dir(self, check=True):
-		today = date.fromtimestamp(time.time())
-		path = '/'.join([self.config('working'), today.isoformat(), self._data_id])
-		if check:
-			self.check_path(path)
-		return path
+	def working_dir(self):
+		return self._experiment.dir('working')
 
-	def output_dir(self, check=True):
-		path = '/'.join([self.config('output'), self.get_date(), self._data_id])
-		if check:
-			self.check_path(path)
-		return path
-
-	def output(self, file_name, text):
-		with open(self.output_dir()+'/'+file_name, 'a') as f:
-			f.write(text)
-
-	@classmethod
-	def get_date(cls):
-		today = date.fromtimestamp(time.time())
-		return today.isoformat()
+	def output_dir(self):
+		return self._experiment.dir('output')
 
 	def config(self, variable):
 		""" Accessor for the config
 		:param variable: section in the ini file
 		:return: str
 		"""
-		return self._config.get(self._data_id, variable)
-
-	@classmethod
-	def check_path(cls, path):
-		if not os.path.exists(path):
-			os.makedirs(path)
+		return self._experiment.config(variable)

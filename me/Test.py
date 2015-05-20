@@ -7,8 +7,8 @@ from lib.measure import ConfusionMatrix
 
 class Test(MachineLearningModule):
 
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
 		#self.input_module = 'me.Predict'
 
 	def run(self, tagger):

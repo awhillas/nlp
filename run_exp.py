@@ -1,26 +1,33 @@
 #! /usr/bin/python
 
-import sys, ConfigParser, importlib, time, argparse
+import os, sys, ConfigParser, importlib, time, argparse
 from datetime import date
 
 class Experiment:
 
-	def __init__(self, data_set_id, scripts_pipe, config_file, no_cache, no_save):
-		self.data_set_id = data_set_id
-		self.scripts_pipe = scripts_pipe
+	def __init__(self, args):
+		self._data_set_id = args.data
+		self._scripts_pipe = args.script
 		
-		self.config = ConfigParser.SafeConfigParser()
-		self.config.read(config_file)
-		
-		today = date.fromtimestamp(time.time())
-		self.working_dir = '/'.join([self.config.get(data_set_id, 'working'), today.isoformat(), self.data_set_id])
-		self.no_cache = no_cache
-		self.no_save = no_save
+		self._config = ConfigParser.SafeConfigParser()
+		self._config.read(args.config)
+		self._config.read(args.config)
+
+		self.no_cache = args.no_cache
+		self.no_save = args.no_save
+		self.name = args.name
+		self.comment = args.comment
+
+		# Dict. we can throw output into
+		self.output = {
+			"Name:": args.name,
+			"Comment:": args.comment
+		}
 
 	def run(self):
 		previous_module = None
 		# Modules should communicate via the config object
-		for script in self.scripts_pipe:
+		for script in self._scripts_pipe:
 
 			# Load the next script in the que
 			m = self.load(script)
@@ -40,11 +47,38 @@ class Experiment:
 			if success:
 				if not self.no_save:
 					print "Saving", script
-					m.save(self.working_dir)
+					m.save(self.dir('working'))
 			else:
 				# Need to pull and error here
 				print str(script) + " failed! Work not saved."
 				break
+
+	def dir(self, name, check=True):
+		path = '/'.join([self.config(name), self.get_date(), self._data_set_id, self.name])
+		if check:
+			self.check_path(path)
+		return path
+
+	def output(self, file_name, text):
+		with open(self.output_dir()+'/'+file_name, 'a') as f:
+			f.write(text)
+
+	def config(self, variable):
+		""" Accessor for the config
+		:param variable: section in the ini file
+		:return: str
+		"""
+		return self._config.get(self._data_set_id, variable)
+
+	@classmethod
+	def get_date(cls):
+		today = date.fromtimestamp(time.time())
+		return today.isoformat()
+
+	@classmethod
+	def check_path(cls, path):
+		if not os.path.exists(path):
+			os.makedirs(path)
 
 	def load(self, name):
 		"""
@@ -53,7 +87,7 @@ class Experiment:
 		package, cls = name.rsplit('.', 1)
 		module = importlib.import_module(name, package)
 		m = getattr(module, cls)
-		return m(self.config, self.data_set_id)
+		return m(self)
 
 
 if __name__ == "__main__":
@@ -65,8 +99,10 @@ if __name__ == "__main__":
 	""")
 	parser.add_argument('data',\
 						help="Section ID in the config file that points to the experiment variables.")
-	parser.add_argument('-n', '--name',\
-						help="Descriptive name used to label the output and working sets.")
+	parser.add_argument('-n', '--name', default="",\
+						help="Name used to label the output and working sets.")
+	parser.add_argument('-m', '--comment', default="",\
+						help="Comment to be logged with the output.")
 	parser.add_argument('script', nargs='+',\
 						help="Script pipe, an ordered list of scripts to run.")
 	parser.add_argument('-c', '--config', default='./config.ini',\
@@ -79,5 +115,5 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	if args.data and len(args.script) > 0:
-		e = Experiment(args.data, args.script, args.config, args.no_cache, args.no_save)
+		e = Experiment(args)
 		e.run()

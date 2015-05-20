@@ -7,8 +7,8 @@ from lib.conllu import ConlluReader
 from lib.pos_tagging import tag_all
 
 class Predict(MachineLearningModule):
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Train'
 		self.labled_sequences = {}
 
