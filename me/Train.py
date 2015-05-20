@@ -36,8 +36,8 @@ class Train(MachineLearningModule):
 		# TODO Use the CV training set to tune the regularization_parameter of the MaxEntMarkovModel i.e. smaller param. learning cycles
 
 		iterations = int(self.config('iterations'))
-		reg = float(self.config('iterations'))
-		mxitr = int(self.config('iterations'))
+		reg = float(self.config('regularization'))
+		mxitr = int(self.config('maxiter'))
 		#self.load(filename_prefix="_params")
 		for i in range(0, iterations):
 			print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
@@ -49,3 +49,11 @@ class Train(MachineLearningModule):
 		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
 
 		return True
+
+	# def save(self, path = None, filename_prefix = ''):
+	# 	if self.model is not None:
+	# 		self.model.save()
+	#
+	# def load(self, path = None, filename_prefix = ''):
+	# 	if self.model is not None:
+	# 		self.model.load()

@@ -7,9 +7,7 @@ __author__ = "Alexander Whillas <whillas@gmail.com>"
 """
 
 import cPickle as pickle
-import time
 import os
-from datetime import date
 
 class MachineLearningModule:  # Interface.
 	""" Generic interface to all modules in an ML chain/pipeline.
@@ -40,10 +38,11 @@ class MachineLearningModule:  # Interface.
 		"""
 		if path is None:
 			path = self._experiment.dir('working')
+		copy = dict(self.__dict__)
 		full_path = path + '/' + self.get_save_file_name(filename_prefix)
-		f = open(full_path, 'wb')
-		pickle.dump(self.__dict__, f, 2)
-		f.close()
+		copy.pop('_experiment')
+		with open(full_path, 'wb') as f:
+			pickle.dump(copy, f, 2)
 		print "Saved", full_path
 		return full_path
 
@@ -57,9 +56,9 @@ class MachineLearningModule:  # Interface.
 		if not os.path.exists(full_path):
 			print "Could not load", full_path
 			return False
-		data = open(full_path, 'rb')
-		tmp_dict = pickle.load(data)
-		data.close()
+		with open(full_path, 'rb') as f:
+			tmp_dict = pickle.load(f)
+		tmp_dict['_experiment'] = self._experiment
 		self.__dict__.update(tmp_dict)
 		print "Loaded", full_path
 		return full_path
@@ -89,4 +88,4 @@ class MachineLearningModule:  # Interface.
 		return self._experiment.config(variable)
 		
 	def out(self, file_name, text):
-		self._experiment.output(file_name, text)
+		self._experiment.out(file_name, text)

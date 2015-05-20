@@ -1,4 +1,7 @@
 __author__ = 'Alexander Whillas'
+"""
+Test all the bits around the MEMM but not the actual MEMM itself
+"""
 
 import pytest
 from lib.MaxEntMarkovModel import *
@@ -17,6 +20,7 @@ from lib.MaxEntMarkovModel import *
 	'me@yomumas.com', "!email!"),
 	('me@yomumas4ever.com', "!email!"),
 	('me2@yomumas4ever.com', "!email!"),
+	('McConnell@ECT', '!email!'),
 	(# URL regex
 	'http://www.quora.com/', "!url!"),
 	('www.quora.com', "!url!"),
@@ -42,6 +46,7 @@ from lib.MaxEntMarkovModel import *
 	('.', '.'),
 	(',', ','),
 	(';', ';'),
+	('-LRB-', '-lrb-'),
 ])
 def test_normalize_numbers_and_junk(input, expected):
 	assert CollinsNormalisation.word(input) == expected

@@ -50,10 +50,10 @@ class Test(MachineLearningModule):
 		print "Sentence: ", "{:03.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
 		
 		# Save confusion matrix
-		iterations = int(self.config('iterations'))
-		reg = float(self.config('iterations'))
-		mxitr = int(self.config('iterations'))
-		self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{3:05.f}%,sent-{4:05.1f}%.csv".format(i, reg, mxitr, matrix.precision() * 100, float(sents) / len(gold_labeled_sequences) * 100), matrix.csv())
+		itr = int(self.config('iterations'))
+		reg = float(self.config('regularization'))
+		mxitr = int(self.config('maxiter'))
+		self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{3:4.1f}%,sent-{4:4.1f}%.csv".format(itr, reg, mxitr, matrix.precision() * 100, float(sents) / len(gold_labeled_sequences) * 100), matrix.csv())
 		
 		matrix.show()
 

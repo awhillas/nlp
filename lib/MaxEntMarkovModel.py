@@ -10,6 +10,7 @@ from scipy.optimize import minimize
 from itertools import izip, izip_longest
 from scipy import array
 import pandas
+import cPickle as pickle
 
 # Common functions
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -202,6 +203,12 @@ class MaxEntMarkovModel(SequenceModel):
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 
+	def save(self, path):
+		pickle.dump(self.__dict__, open(path + '/'+self.__class__.__name__.pickle, 'wb'), -1)
+
+	def load(self, path):
+		self.__dict__.update(pickle.load(open(path + '/'+self.__class__.__name__.pickle)))
+
 	def get_labels(self, word):
 		if word in self.word_tag_count:
 			return self.word_tag_count[word].keys()
@@ -248,7 +255,7 @@ class MaxEntMarkovModel(SequenceModel):
 			# Regularization
 			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
 
-			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max :{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
+ 			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max :{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
@@ -404,7 +411,7 @@ class CollinsNormalisation(WordNormaliser):
 			return '!emoticon!'
 		if len(word) > 1 \
 				and "'" not in word \
-				and ('-' not in word or word.count('-') > 1):
+				and ('-' not in word or word.count('-') > 2):
 			if all(i in string.punctuation for i in word):
 				return '!allPunctuation!'
 			elif not all(i in string.letters for i in word):

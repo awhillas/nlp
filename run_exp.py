@@ -12,13 +12,10 @@ def _pickle_method(method):
 	return _unpickle_method, (func_name, obj, cls)
 
 def _unpickle_method(func_name, obj, cls):
-	for cls in cls.mro():
-		try:
-			func = cls.__dict__[func_name]
-		except KeyError:
-			pass
-		else:
-			break
+	try:
+		func = cls.__dict__[func_name]
+	except KeyError:
+		pass
 	return func.__get__(obj, cls)
 
 import copy_reg
@@ -81,8 +78,8 @@ class Experiment:
 			self.check_path(path)
 		return path
 
-	def output(self, file_name, text):
-		with open(self.output_dir()+'/'+file_name, 'a') as f:
+	def out(self, file_name, text):
+		with open(self.dir('output')+'/'+file_name, 'a') as f:
 			f.write(text)
 
 	def config(self, variable):
