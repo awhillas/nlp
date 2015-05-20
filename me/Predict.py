@@ -10,7 +10,7 @@ class Predict(MachineLearningModule):
 	def __init__(self, experiment):
 		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Train'
-		self.labled_sequences = {}
+		self.labeled_sequences = []
 
 	def run(self, trained):
 		self.model = trained.model

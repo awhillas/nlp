@@ -26,6 +26,7 @@ class Test(MachineLearningModule):
 		gold_labeled_sequences = data.tagged_sents(self.config('testing_file'))
 
 		all_labels = tagger.model.tag_count.keys()
+
 		matrix = ConfusionMatrix(all_labels)
 		sents = 0
 		for i, gold_seq in enumerate(gold_labeled_sequences):
@@ -46,8 +47,8 @@ class Test(MachineLearningModule):
 			error_count = sum([1 if predicted_labels[i] == gold_labels[i] else 0 for i,_ in enumerate(gold_labels)])
 			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
 
-		print "Tag:", "{:03.2f}".format(matrix.precision() * 100), "%"
-		print "Sentence: ", "{:03.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
+		print "Tag:", "{:>4.2f}".format(matrix.precision() * 100), "%"
+		print "Sentence: ", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
 		
 		# Save confusion matrix
 		itr = int(self.config('iterations'))

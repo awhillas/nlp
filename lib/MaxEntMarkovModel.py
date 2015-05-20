@@ -304,7 +304,7 @@ class MaxEntMarkovModel(SequenceModel):
 	def frequency_tag(self, unlabeled_sequence):
 		""" Label with the highest frequency word label (base line)
 		:param unlabeled_sequence: List of sentences, which are lists of words.
-		:return: List if labeled sentences: lists of (word, tag) tuple pairs.
+		:return: List if labeled sentences: lists of (word) tuple pairs.
 		"""
 		highest_freq_tag = max(self.tag_count.iterkeys(), key=(lambda key: self.tag_count[key]))
 		tags = []
@@ -504,6 +504,7 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 		trained.
 		:param i: position in the context
 		:param context: tuple of (words, labels)
+		:return: list of features WITHOUT the target tag. Need to add that to these before use.
 		"""
 
 		def add(name, *args):
@@ -513,40 +514,40 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 		def add_suffixes(name, word, n):
 			if not Context.is_pseudo(word):  # i.e. it's a pseudo word/class
 				for s in cls.get_suffixes(word, n):
-					add(name, s, tag)
+					add(name, s)
 
 		features = []  # Should be a Set but that's too slow :(
 		words, tags = context
 		tag = tags[i]  # tag we're predicting
 		n_suffixes = 4
 
-		add('bias')  # Acts like a prior
+		#add('bias')  # Acts like a prior
 
-		add('i word & i tag', words[i], tag)
-		add('i-1 word & i tag', words[i-1], tag)
-		add('i-2 word & i tag', words[i-2], tag)
-		add('i+1 word & i tag', words[i+1], tag)
-		add('i+2 word & i tag', words[i+2], tag)
+		add('i word', words[i])
+		add('i-1 word', words[i-1])
+		add('i-2 word', words[i-2])
+		add('i+1 word', words[i+1])
+		add('i+2 word', words[i+2])
 
 		# Bigram's
-		add('i-2 word, i-1 word & i tag', words[i-2], words[i-1], tag)
-		add('i-1 word, i word & i tag', words[i-1], words[i], tag)
-		add('i word, i+1 word & i tag', words[i], words[i+1], tag)
-		add('i+1 word, i+2 word & i tag', words[i+1], words[i+2], tag)
+		add('i-2 word, i-1 word', words[i-2], words[i-1])
+		add('i-1 word, i word', words[i-1], words[i])
+		add('i word, i+1 word', words[i], words[i+1])
+		add('i+1 word, i+2 word', words[i+1], words[i+2])
 
 		# Current Tag
-		#add('i tag ', tag)  # does this add too much weight to more frequent tags?
+		#add('i tag ')  # does this add too much weight to more frequent tags?
 
 		# Bigram tags (skip-grams?)
-		add('i-1 tag & i tag', tags[i-1], tag)
-		add('i-2 tag & i tag', tags[i-2], tag)
-		add('i+1 tag & i tag', tags[i+1], tag)
-		add('i+2 tag & i tag', tags[i+2], tag)
+		add('i-1 tag', tags[i-1])
+		add('i-2 tag', tags[i-2])
+		add('i+1 tag', tags[i+1])
+		add('i+2 tag', tags[i+2])
 
 		# Tri-gram tags
-		add('i-2 tag, i-1 tag, i tag', tags[i-2], tags[i-1], tag)
-		add('i-1 tag, i tag, i+1 tag', tags[i-1], tag, tags[i+1])
-		add('i tag, i+1 tag, i+2 tag', tag, tags[i+1], tags[i+2])
+		add('i-2 tag, i-1 tag', tags[i-2], tags[i-1])
+		add('i-1 tag, i+1 tag', tags[i-1], tags[i+1])
+		add('i+1 tag, i+2 tag', tags[i+1], tags[i+2])
 
 		add_suffixes('i word suffix', words[i], n_suffixes)
 
@@ -584,12 +585,10 @@ class Context(object):
 		self.templates = feature_templates
 		self.features = []  # feature templates for each word position in the sentence
 		for i, _ in enumerate(self.sequence):
-			labels_copy = list(self.labels)
-			labels_copy[i] = '{0}'
-			self.features.append([f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(labels_copy)+END))])
+			self.features.append([f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))])
 
 	def get_features(self, i, label):
-		return [f.format(label) for f in self.features[i]]  # merge the feature set with the label
+		return [f+" &"+label for f in self.features[i]]  # merge the feature set with the label
 
 	@classmethod
 	def is_pseudo(cls, thing):
