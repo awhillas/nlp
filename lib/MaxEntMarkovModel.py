@@ -269,7 +269,7 @@ class MaxEntMarkovModel(SequenceModel):
 					for label in self.tag_count.iterkeys():
 						for feature in context.get_features(i, label):
 							if feature in v:
-								# print "dV[", feature, "] += ", probabilities[label]
+								print "dV[", feature, "] += ", probabilities[label]
 								dV[feature] += probabilities[label]
 
 			# Actual feature counts + regularize
