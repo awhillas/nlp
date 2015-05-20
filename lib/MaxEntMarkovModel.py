@@ -25,7 +25,6 @@ def normalize(d, target=1.0):
 	factor = target / raw
 	return {key: value * factor for key, value in d.iteritems()}
 
-
 def print_dptable(V, seq):
 	""" Display Dynamic Programming table for Viterbi algo
 	"""
@@ -38,6 +37,8 @@ def print_dptable(V, seq):
 	for tag, values in inv.iteritems():
 		row = [tag] + values
 		print row_format.format(*row)
+
+
 
 
 # Interfaces
@@ -166,8 +167,6 @@ class WordNormaliser(object):
 		raise NotImplementedError("Should have implemented this")
 
 
-
-
 # Implementations
 #  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -249,7 +248,7 @@ class MaxEntMarkovModel(SequenceModel):
 			# Regularization
 			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
 
-			print "{:>8.2f} - {:>8.2f} = {:>+8.2f} (max:{:>+3.2f}, min:{:>+3.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
+			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max :{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
@@ -336,7 +335,7 @@ class MaxEntMarkovModel(SequenceModel):
 		if i > 0:
 			tags[i-1] = prev_label
 		# Need to recreate a new Context with the new tags so the features get regenerated.
-		return self.probabilities(i, Context((context.words, tags)), self.parameters)[label]
+		return self.probabilities(i, Context((context.words, tags)), self.weights)[label]
 
 	def tag_probability_distributions(self, unlabeled_sequence):
 		fb = ForwardBackward(self)

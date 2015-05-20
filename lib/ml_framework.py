@@ -87,3 +87,6 @@ class MachineLearningModule:  # Interface.
 		:return: str
 		"""
 		return self._experiment.config(variable)
+		
+	def out(self, file_name, text):
+		self._experiment.output(file_name, text)
