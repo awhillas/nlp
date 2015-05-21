@@ -40,6 +40,7 @@ class MachineLearningModule:  # Interface.
 			path = self._experiment.dir('working')
 		copy = dict(self.__dict__)
 		full_path = path + '/' + self.get_save_file_name(filename_prefix)
+		# don't save
 		copy.pop('_experiment')
 		with open(full_path, 'wb') as f:
 			pickle.dump(copy, f, 2)

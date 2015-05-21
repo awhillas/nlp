@@ -42,6 +42,7 @@ class Train(MachineLearningModule):
 		for i in range(0, iterations):
 			print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
 			self.model.learn_parameters(training_data, regularization=reg, maxiter=mxitr)
+			self.save()
 			time.sleep(5)
 			#self.save(filename_prefix="_params,iter-{0},reg-{1},maxiter-{2}".format(i, reg, mxitr))
 
