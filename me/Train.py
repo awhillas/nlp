@@ -38,11 +38,13 @@ class Train(MachineLearningModule):
 		iterations = int(self.config('iterations'))
 		reg = float(self.config('regularization'))
 		mxitr = int(self.config('maxiter'))
-		#self.load(filename_prefix="_params")
+		if not self._experiment.no_cache:
+			self.load()
 		for i in range(0, iterations):
 			print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
 			self.model.learn_parameters(training_data, regularization=reg, maxiter=mxitr)
-			self.save()
+			if not self._experiment.no_save:
+				self.save()
 			time.sleep(5)
 			#self.save(filename_prefix="_params,iter-{0},reg-{1},maxiter-{2}".format(i, reg, mxitr))
 
