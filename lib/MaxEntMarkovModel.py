@@ -41,7 +41,6 @@ def print_dptable(V, seq):
 
 
 
-
 # Interfaces
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -170,15 +169,6 @@ class WordNormaliser(object):
 
 # Implementations
 #  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-
-# class LogLinearModel(SequenceModel):
-# 	""" aka Maximum Entropy Model
-# 		TODO: implement for comparison purposes.
-# 	"""
-# 	def __init__(self):
-# 		super(LogLinearModel, self).__init__()
-
 
 class MaxEntMarkovModel(SequenceModel):
 	""" Maximum Entropy Markov Model
