@@ -1,7 +1,5 @@
-from textblob_aptagger import PerceptronTagger
-
+from lib.PerceptronTagger import PerceptronTagger
 from lib.ml_framework import MachineLearningModule
-
 from lib.conllu import ConlluReader
 
 
@@ -16,9 +14,8 @@ class Train(MachineLearningModule):
 
 		# Get (words, tags) sequences for all sentences
 
-		reader = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		training_file_ids = [self.config(i) for i in ['training_file', 'cross_validation_file']]
-		training_data = reader.tagged_sents(training_file_ids)
+		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		training_data = data.tagged_sents(self.config('training_file'))
 
 		sentences = []
 		for s in training_data:
@@ -26,14 +23,14 @@ class Train(MachineLearningModule):
 
 		# Train the model
 
-		model = PerceptronTagger()
-		model.train(sentences=sentences, save_loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
+		self.model = PerceptronTagger(load=False)
+		self.model.train(sentences=sentences, save_loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		return True
 
-	def save(self, path):
+	def save(self, path=None):
 		# PerceptronTagger does its own saving after training.
 		pass
 
-	def load(self, path):
-		pass
+	def load(self, path=None):
+		pass  # tb.Predict handles this

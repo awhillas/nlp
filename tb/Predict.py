@@ -8,36 +8,34 @@
 #from __future__ import print_function
 
 from textblob import TextBlob
-from textblob_aptagger import PerceptronTagger
-
+from lib.PerceptronTagger import PerceptronTagger
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
+from lib.pos_tagging import matrix_to_string
 
 
 class Predict(MachineLearningModule):
 	def __init__(self, experiment):
 		MachineLearningModule.__init__(self, experiment)
-		self.input_module = 'tb.TextblobTrain'
+		self.input_module = 'tb.Train'
+		self.labeled_sequences = []
 
 	def run(self, _):
 
 		# Init
 
 		reader = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		tagger = PerceptronTagger(load=False)
-		tagger.load(loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
+		tron = PerceptronTagger(load=False)
+		tron.load(loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		# generate tags
 
-		for s in reader.tagged_sents(self.config('testing_file')):
-			words, gold_tags = zip(*s)
-			print " ".join(gold_tags)
-
-			# Tag the sentence and save it.
-
-			blob = TextBlob(" ".join(words), pos_tagger=tagger)
-			if len(blob.tags) > 0:
-				self.labeled_sequences = blob.tags
+		for s in reader.sents(self.config('testing_file')):
+			predicted = tron.tag(s)
+			if len(predicted) > 0:
+				words, tags = zip(*predicted)
+				print matrix_to_string([words, tags]), "\n"
+				self.labeled_sequences += [predicted]
 			else:
 				print "Could not tag sentence?", " ".join(words)
 
