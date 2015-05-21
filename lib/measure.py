@@ -118,3 +118,27 @@ class ConfusionMatrix:
 				total += count
 		return float(correct) / total
 
+	def compare(self, predicted_sequences, expected_sequences):
+
+		sentence_errors = word_error = word_count = 0
+
+		for i, gold_seq in enumerate(expected_sequences):
+			words, gold_labels = zip(*gold_seq)
+			words2, predicted_labels = zip(*predicted_sequences[i])
+			error = False
+			for j, word in enumerate(words2):
+				word_count += 1
+				if word == words[j]:
+					self.add(gold_labels[j], predicted_labels[j])
+					if gold_labels[j] != predicted_labels[j]:
+						error = True
+						word_error += 1
+				else:
+					print "Sequences out of sync", words, words2
+					raise
+			if not error:
+				sentence_errors += 1
+
+		return word_count, word_error, sentence_errors
+
+
