@@ -7,29 +7,25 @@ MaxEnt Markov Model (MEMM) training
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
-import os
 import time
 
 class Train(MachineLearningModule):
 	def __init__(self, experiment):
 		MachineLearningModule.__init__(self, experiment)
-		self.model = None
+		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
 
 	def run(self, _):
-
-		# Training the model
-		print "Training MaxEnt model..."
-
-		# Get data
-
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		training_data = data.tagged_sents(self.config('training_file'))
 
-		# Learn features
+		if self._experiment.no_cache or not self.load(filename_prefix="_memm"):
+			print "Training MaxEnt model..."
+			# Get data
 
-		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
-		self.model.train(training_data)
-		print "Features:", len(self.model.weights)
+			# Learn features
+			self.model.train(training_data)
+			self._experiment.output["Features"] = len(self.model.weights)
+			print "Features:", len(self.model.weights)
 
 		# Learn feature weights
 
@@ -38,25 +34,17 @@ class Train(MachineLearningModule):
 		iterations = int(self.config('iterations'))
 		reg = float(self.config('regularization'))
 		mxitr = int(self.config('maxiter'))
-		if not self._experiment.no_cache:
-			self.load()
+
 		for i in range(0, iterations):
 			print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
 			self.model.learn_parameters(training_data, regularization=reg, maxiter=mxitr)
 			if not self._experiment.no_save:
-				self.save()
+				self.save(filename_prefix="_memm")
 			time.sleep(5)
-			#self.save(filename_prefix="_params,iter-{0},reg-{1},maxiter-{2}".format(i, reg, mxitr))
+
+		self.delete(filename_prefix="_memm")  # Remove temp backup file
 
 		# TODO: Use cross-validation set to tune the regularization param.
 		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
 
-		return True
-
-	# def save(self, path = None, filename_prefix = ''):
-	# 	if self.model is not None:
-	# 		self.model.save()
-	#
-	# def load(self, path = None, filename_prefix = ''):
-	# 	if self.model is not None:
-	# 		self.model.load()
+		return self.model

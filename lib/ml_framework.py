@@ -23,8 +23,6 @@ class MachineLearningModule:  # Interface.
 		"""
 		self.input_module = None
 		self._experiment = experiment
-		self._config = experiment.config
-		print self.__class__
 
 	def run(self, previous):
 		""" Do the work
@@ -36,12 +34,9 @@ class MachineLearningModule:  # Interface.
 		""" Save the output.
 			Ideally so that a run() can be skipped
 		"""
-		if path is None:
-			path = self._experiment.dir('working')
+		full_path = self.get_save_file_name(path, filename_prefix)
 		copy = dict(self.__dict__)
-		full_path = path + '/' + self.get_save_file_name(filename_prefix)
-		# don't save
-		copy.pop('_experiment')
+		copy.pop('_experiment')  # don't save
 		with open(full_path, 'wb') as f:
 			pickle.dump(copy, f, 2)
 		print "Saved", full_path
@@ -51,9 +46,7 @@ class MachineLearningModule:  # Interface.
 		""" Load the saved output
 			Instead of of run()?
 		"""
-		if path is None:
-			path  = self.working_dir()
-		full_path = path + '/' + self.get_save_file_name(filename_prefix)
+		full_path = self.get_save_file_name(path, filename_prefix)
 		if not os.path.exists(full_path):
 			print "Could not load", full_path
 			return False
@@ -64,10 +57,20 @@ class MachineLearningModule:  # Interface.
 		print "Loaded", full_path
 		return full_path
 
-	def get_save_file_name(self, filename_prefix = ''):
+	def delete(self, path = None, filename_prefix = ''):
+		""" Remove saved file
+		"""
+		full_path = self.get_save_file_name(path, filename_prefix)
+		if os.path.exists(full_path):
+			print "Removing", full_path
+			os.remove(full_path)
+
+	def get_save_file_name(self, path = None, filename_prefix = ''):
 		""" Return a unique filename.
 		"""
-		return self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
+		if path is None:
+			path = self._experiment.dir('working')
+		return path + self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
 
 	def get_input_file_name(self):
 		return self.config("training_file")

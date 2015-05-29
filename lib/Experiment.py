@@ -8,7 +8,7 @@ import copy_reg
 import types
 
 
-class Experiment:
+class Experiment(object):
 	"""
 	Experiment is a script pipe and some parameters to apply to this run of the scripts.
 	Should handle the setup and ranging through parameter combinations

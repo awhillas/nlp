@@ -193,11 +193,11 @@ class MaxEntMarkovModel(SequenceModel):
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 
-	def save(self, path):
-		pickle.dump(self.__dict__, open(path + '/'+self.__class__.__name__.pickle, 'wb'), -1)
+	def save(self, path, filename_prefix = '_memm'):
+		pickle.dump(self.__dict__, open(path + '/'+self.__class__.__name__+filename_prefix+".pickle", 'wb'), -1)
 
-	def load(self, path):
-		self.__dict__.update(pickle.load(open(path + '/'+self.__class__.__name__.pickle)))
+	def load(self, path, filename_prefix = '_memm'):
+		self.__dict__.update(pickle.load(open(path + '/'+self.__class__.__name__+filename_prefix+".pickle")))
 
 	def get_labels(self, word):
 		if word in self.word_tag_count:
