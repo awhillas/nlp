@@ -64,11 +64,6 @@ class ConlluReader(SyntaxCorpusReader):
 					  for fileid, enc in self.abspaths(fileids, include_encoding=True)])
 		return [DependencyGraph(sent) for sent in sents]
 
-	def sents_len_counts(self, fileids=None):
-		""" Average sentence length
-s		"""
-		lengths = ()
-
 
 class ConlluView(StreamBackedCorpusView):
 	def __init__(self, corpus_file, tagged, group_by_sent, dependencies,
