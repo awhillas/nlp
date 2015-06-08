@@ -169,3 +169,11 @@ def test_context_get_features_edge_case(labeled_sequence):
 	# Tri-gram tags
 	assert 'i-2 tag, i-1 tag {0} {1} &test'.format(BEGIN*2,BEGIN) in features
 	assert 'i-1 tag, i+1 tag {0} 2 &test'.format(BEGIN) in features
+
+def test_merge_features():
+	values = [1,2,3]
+	keys = ['a', 'b', 'c']
+	out = MaxEntMarkovModel._merge_weight_values(keys, values)
+	assert out['a'] == 1
+	assert out['b'] == 2
+	assert out['c'] == 3
