@@ -3,6 +3,7 @@ __author__ = "Alexander Whillas <whillas@gmail.com>"
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.measure import ConfusionMatrix
+from lib.csv_logger import CSVLogger
 
 
 class Test(MachineLearningModule):
@@ -10,6 +11,9 @@ class Test(MachineLearningModule):
 	def __init__(self, experiment):
 		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Predict'
+		# Output logging
+		log_keys = ["Name", "Date", "Model", "Data", "Features", "Train Iter.", "Reg.", "Max Iter.", "Word %", "Sentence %", "Comment"]
+		self.logger = self.logger = CSVLogger(self.config('output') + "/POS-tagging.log.csv", log_keys)
 
 	def run(self, tagger):
 		# TODO: move most of this inside the confusion matrix
@@ -49,13 +53,26 @@ class Test(MachineLearningModule):
 
 		print "Tag:", "{:>4.2f}".format(matrix.precision() * 100), "%"
 		print "Sentence: ", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
-		
-		# Save confusion matrix
-		itr = int(self.config('iterations'))
-		reg = float(self.config('regularization'))
-		mxitr = int(self.config('maxiter'))
-		self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{3:4.1f}%,sent-{4:4.1f}%.csv".format(itr, reg, mxitr, matrix.precision() * 100, float(sents) / len(gold_labeled_sequences) * 100), matrix.csv())
-		
-		matrix.show()
+
+		if not self._experiment.no_save:
+			itr = int(self.config('iterations'))
+			reg = float(self.config('regularization'))
+			mxitr = int(self.config('maxiter'))
+			word_precision = matrix.precision() * 100
+			sent_precision = float(sents) / len(gold_labeled_sequences) * 100
+			# Save confusion matrix
+			self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{3:4.1f}%,sent-{4:4.1f}%.csv".format(itr, reg, mxitr, word_precision, sent_precision), matrix.csv())
+			# Log run
+			self.logger.add(**dict({
+				"Date": self._experiment.get_date(),
+				"Features": len(tagger.model.weights),
+				"Model": "MaxEnt",
+				"Data": self._experiment._data_set_id,
+				"Train Iter.": itr,
+				"Reg.": reg,
+				"Max Iter.": mxitr,
+				"Word %": round(word_precision, 2),
+				"Sentence %": round(sent_precision, 2)
+			}.items() + self._experiment.log.items()))
 
 		return True

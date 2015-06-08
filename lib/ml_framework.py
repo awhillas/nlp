@@ -69,8 +69,11 @@ class MachineLearningModule:  # Interface.
 		""" Return a unique filename.
 		"""
 		if path is None:
-			path = self._experiment.dir('working')
+			path = self.dir('working')
 		return path + self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
+
+	def dir(self, name):
+		return self._experiment.dir(name)
 
 	def get_input_file_name(self):
 		return self.config("training_file")
@@ -93,3 +96,6 @@ class MachineLearningModule:  # Interface.
 		
 	def out(self, file_name, text):
 		self._experiment.out(file_name, text)
+
+	def log(self, file_name, text):
+		self._experiment.log(file_name, text)

@@ -27,9 +27,10 @@ class Experiment(object):
 		self.comment = args.comment
 
 		# Dict. we can throw output into
-		self.output = {
-			"Name:": args.name,
-			"Comment:": args.comment
+		self.log = {
+			"Data": self._data_set_id,
+			"Name": args.name,
+			"Comment": args.comment,
 		}
 
 	def run(self):
@@ -62,7 +63,7 @@ class Experiment(object):
 				break
 
 	def dir(self, name, check=True):
-		path = '/'.join([self.config(name), self.get_date(), self._data_set_id, self.name])
+		path = '/'.join([self.config(name), self._data_set_id, self.name])
 		if check:
 			self.check_path(path)
 		return path
@@ -85,6 +86,7 @@ class Experiment(object):
 
 	@classmethod
 	def check_path(cls, path):
+		""" Check to see if a path exists and if not then create it """
 		if not os.path.exists(path):
 			os.makedirs(path)
 

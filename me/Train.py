@@ -24,7 +24,7 @@ class Train(MachineLearningModule):
 
 			# Learn features
 			self.model.train(training_data)
-			self._experiment.output["Features"] = len(self.model.weights)
+			#self._experiment.log["Features"] = len(self.model.weights)  # TODO: doesn't seem to make it ?
 			print "Features:", len(self.model.weights)
 
 		# Learn feature weights
