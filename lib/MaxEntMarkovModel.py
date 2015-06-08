@@ -44,7 +44,6 @@ def print_dptable(V, seq):
 # Interfaces
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-
 class SequenceModel(object):
 	""" Model for machine learning models
 	"""
@@ -244,46 +243,17 @@ class MaxEntMarkovModel(SequenceModel):
 				context = Context(seq, self.feature_templates)
 				for i, (_, label) in enumerate(seq):
 					probabilities = self.probabilities(i, context, v)
-					log_p += log(probabilities[label])
-
+					if probabilities[label] > 0.0:  # Getting zero some times...?
+						log_p += log(probabilities[label])
+			
 			# Regularization
 			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
-
- 			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max:{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
-			return log_p - regulatiser
-
-		def objective2(x):
-			""" Objective in long form. """
-
-			def dot(values, features):
-				""" vector inner product """
-				return sum(values[f] for f in features if f in values)
-
-			v = self._merge_weight_values(self.weights.iterkeys(), x)
-			log_p = 0.0
-
-			for seq in normaised_data:
-				context = Context(seq, self.feature_templates)
-				for i, (_, label) in enumerate(seq):
-					log_p += dot(v, context.get_features(i, label))
-					dinominator = 0.0
-					#dinominator = sum(exp(dot(v, context.get_features(i, tag)) for tag in self.tag_count.iterkeys()))
-					# or ...
-					for tag in self.tag_count.iterkeys():
-						prod = dot(v, context.get_features(i, tag))
-						dinominator += exp(prod)
-					if dinominator > 0:
-						log_p -= log(dinominator)
-
-			# Regularization
-			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
-
+			
  			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max:{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
 			return log_p - regulatiser
 
 		def inverse_gradient(x):
 			""" Inverse (coz we want the max. not min.) of the Gradient of the objective. """
-			#v = SortedDict(izip(self.weights.iterkeys(), x))  # current param. vector
 			v = self._merge_weight_values(self.weights.iterkeys(), x)
 			dV = SortedDict.fromkeys(self.weights.iterkeys(), 0.0)  # gradient vector output
 
@@ -296,7 +266,6 @@ class MaxEntMarkovModel(SequenceModel):
 					for label in self.tag_count.iterkeys():
 						for feature in context.get_features(i, label):  # merge features with label at position i
 							if feature in v:
-								# print "dV[", feature, "] += ", probabilities[label]
 								dV[feature] += probabilities[label]
 
 			# Actual feature counts + regularize
@@ -309,9 +278,9 @@ class MaxEntMarkovModel(SequenceModel):
 
 		# Maximise, actually.
 		params = self.weights.values()
-		bnds = [(-30, 30)] * len(params)  # upper and lower for each var max python can exp(*) without overflow
+		bnds = [(-20, 20)] * len(params)  # upper and lower for each var max python can exp(*) without overflow
 		if len(params) > 0:
-			result = minimize(fun=lambda x: -objective2(x), jac=lambda x: inverse_gradient(x), x0=params,\
+			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
 							  method='L-BFGS-B', options={'maxiter': maxiter}, bounds=bnds)
 		else:
 			print "No parameters to optimise!?"
@@ -386,7 +355,7 @@ class MaxEntMarkovModel(SequenceModel):
 			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
 			for feature in context.get_features(i, label):
 				if feature in v:
-					class_probabilities[label] += exp(v[feature])  # adding exponents is the same as * them
+					class_probabilities[label] *= exp(v[feature])  # exp(a+b) = exp(a) * exp(b)
 		return normalize(class_probabilities)
 
 	def add_tag(self, w, t):
