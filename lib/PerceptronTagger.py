@@ -12,7 +12,7 @@ from lib.AveragedPerceptron import AveragedPerceptron
 PICKLE = "trontagger-0.1.0.pickle"
 
 
-class PerceptronTagger():
+class PerceptronTagger(object):
 
 	'''Greedy Averaged Perceptron tagger, as implemented by Matthew Honnibal.
 
@@ -33,12 +33,12 @@ class PerceptronTagger():
 		if load:
 			self.load(self.AP_MODEL_LOC)
 
-	def tag(self, words):
+	def tag(self, sentence):
 		"""Tags a string `corpus`."""
 		prev, prev2 = self.START
 		tokens = []
-		context = self.START + [self._normalize(w) for w in words] + self.END
-		for i, word in enumerate(words):
+		context = self.START + [self._normalize(w) for w in sentence] + self.END
+		for i, word in enumerate(sentence):
 			tag = self.tagdict.get(word)
 			if not tag:
 				features = self._get_features(i, word, context, prev, prev2)

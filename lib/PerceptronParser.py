@@ -1,89 +1,57 @@
 __author__ = 'alex'
 
-
-class TransitionDependencyParser():
-	def __init__(self):
-		pass
+from lib.AveragedPerceptron import AveragedPerceptron
+from lib.PerceptronTagger import PerceptronTagger
+from lib.defaultlist import DefaultList
 
 SHIFT = 0; RIGHT = 1; LEFT = 2
 MOVES = [SHIFT, RIGHT, LEFT]
 
-def transition(move, i, stack, parse):
-	global SHIFT, RIGHT, LEFT
-	if move == SHIFT:
-		stack.append(i)
-		return i + 1
-	elif move == RIGHT:
-		parse.add_arc(stack[-2], stack.pop())
-		return i
-	elif move == LEFT:
-		parse.add_arc(i, stack.pop())
-		return i
-	raise GrammarError("Unknown move: %d" % move)
 
+class PerceptronParser(object):
 
-def get_valid_moves(i, n, stack_depth):
-	moves = []
-	if i &amp;amp;lt; n:
-		moves.append(SHIFT)
-	if stack_depth <= 2:
-		moves.append(RIGHT)
-	if stack_depth <= 1:
-		moves.append(LEFT)
-	return moves
+	def __init__(self, tagger):
+		self.tagger = tagger
+		self.model = Perceptron()
 
-class Parse(object):
-	def __init__(self, n):
-		self.n = n
-		self.heads = [None] * (n-1)
-		self.lefts = []
-		self.rights = []
-		for i in range(n+1):
-			self.lefts.append(DefaultList(0))
-			self.rights.append(DefaultList(0))
- 
-	def add_arc(self, head, child):
-		self.heads[child] = head
-		if child &amp;amp;lt; head:
-			self.lefts[head].append(child)
-		else:
-			self.rights[head].append(child)
-			
 	def parse(self, words):
 		tags = self.tagger(words)
 		n = len(words)
 		idx = 1
 		stack = [0]
-		deps = Parse(n)
-		while stack or idx &amp;amp;lt; n:
-			features = extract_features(words, tags, idx, n, stack, deps)
+		parse = Parse(n)
+		while stack or idx < n:
+			features = extract_features(words, tags, idx, n, stack, parse)
 			scores = self.model.score(features)
-			valid_moves = get_valid_moves(i, n, len(stack))
+			valid_moves = get_valid_moves(idx, n, len(stack))
 			next_move = max(valid_moves, key=lambda move: scores[move])
 			idx = transition(next_move, idx, stack, parse)
 		return tags, parse
 
-	def train_one(self, itn, words, gold_tags, gold_heads):
+	def train(self, sentences):
+		for s in sentences:
+			heads, words = zip(*[(node['head'], node['word']) for node in s.nodelist if 'head' in node])
+			self.train_one(words, heads)
+
+	def train_one(self, words, gold_heads):
 		n = len(words)
 		i = 2; stack = [1]; parse = Parse(n)
 		tags = self.tagger.tag(words)
-		while stack or (i + 1) &amp;amp;lt; n:
+		while stack or (i + 1) < n:
 			features = extract_features(words, tags, i, n, stack, parse)
 			scores = self.model.score(features)
 			valid_moves = get_valid_moves(i, n, len(stack))
 			guess = max(valid_moves, key=lambda move: scores[move])
 			gold_moves = get_gold_moves(i, n, stack, parse.heads, gold_heads)
 			best = max(gold_moves, key=lambda move: scores[move])
-		self.model.update(best, guess, features)
-		i = transition(guess, i, stack, parse)
-	# Return number correct
-	return len([i for i in range(n-1) if parse.heads[i] == gold_heads[i]])
+			self.model.update(best, guess, features)
+			i = transition(guess, i, stack, parse)
+		# Return number correct
+		return len([i for i in range(n-1) if parse.heads[i] == gold_heads[i]])
 
 
+class Perceptron(AveragedPerceptron):
 
-	
-class Perceptron(object)
-	...
 	def score(self, features):
 		all_weights = self.weights
 		scores = dict((clas, 0) for clas in self.classes)
@@ -96,7 +64,80 @@ class Perceptron(object)
 			for clas, weight in weights.items():
 				scores[clas] += value * weight
 		return scores
-		
+
+
+class Parse(object):
+	def __init__(self, n):
+		self.n = n
+		self.heads = [None] * (n-1)
+		self.lefts = []
+		self.rights = []
+		for i in range(n+1):
+			self.lefts.append(DefaultList(0))
+			self.rights.append(DefaultList(0))
+
+	def add_arc(self, head, child):
+		self.heads[child] = head
+		if child < head:
+			self.lefts[head].append(child)
+		else:
+			self.rights[head].append(child)
+
+
+def get_gold_moves(n0, n, stack, heads, gold):
+
+	def deps_between(target, others, golds):
+		for word in others:
+			if golds[word] == target or golds[target] == word:
+				return True
+		return False
+
+	valid = get_valid_moves(n0, n, len(stack))
+	if not stack or (SHIFT in valid and gold[n0] == stack[-1]):
+		return [SHIFT]
+	if gold[stack[-1]] == n0:
+		return [LEFT]
+	costly = set([m for m in MOVES if m not in valid])
+	# If the word behind s0 is its gold head, Left is incorrect
+	if len(stack) >= 2 and gold[stack[-1]] == stack[-2]:
+		costly.add(LEFT)
+	# If there are any dependencies between n0 and the stack,
+	# pushing n0 will lose them.
+	if SHIFT not in costly and deps_between(n0, stack, gold):
+		costly.add(SHIFT)
+	# If there are any dependencies between s0 and the buffer, popping
+	# s0 will lose them.
+	if deps_between(stack[-1], range(n0+1, n-1), gold):
+		costly.add(LEFT)
+		costly.add(RIGHT)
+	return [m for m in MOVES if m not in costly]
+
+
+def transition(move, i, stack, parse):
+	global SHIFT, RIGHT, LEFT
+	if move == SHIFT:
+		stack.append(i)
+		return i + 1
+	elif move == RIGHT:
+		parse.add_arc(stack[-2], stack.pop())
+		return i
+	elif move == LEFT:
+		parse.add_arc(i, stack.pop())
+		return i
+	raise #GrammarError("Unknown move: %d" % move)
+
+
+def get_valid_moves(i, n, stack_depth):
+	moves = []
+	if i < n:
+		moves.append(SHIFT)
+	if stack_depth <= 2:
+		moves.append(RIGHT)
+	if stack_depth <= 1:
+		moves.append(LEFT)
+	return moves
+
+
 def extract_features(words, tags, n0, n, stack, parse):
 	def get_stack_context(depth, stack, data):
 		if depth >= 3:
@@ -148,7 +189,7 @@ def extract_features(words, tags, n0, n, stack, parse):
 	Vn0b, Wn0b1, Wn0b2 = get_parse_context(n0, parse.lefts, words)
 	Vn0b, Tn0b1, Tn0b2 = get_parse_context(n0, parse.lefts, tags)
  
-	Vn0f, Wn0f1, Wn0f2 = get_parse_context(n0, parse.rights, words)
+	#Vn0f, Wn0f1, Wn0f2 = get_parse_context(n0, parse.rights, words)
 	_, Tn0f1, Tn0f2 = get_parse_context(n0, parse.rights, tags)
  
 	Vs0b, Ws0b1, Ws0b2 = get_parse_context(s0, parse.lefts, words)
@@ -203,30 +244,4 @@ def extract_features(words, tags, n0, n, stack, parse):
 		if w_t or v_d:
 			features['val/d-%d %s %d' % (i, w_t, v_d)] = 1
 	return features
-	
-def get_gold_moves(n0, n, stack, heads, gold):
-	def deps_between(target, others, gold):
-		for word in others:
-			if gold[word] == target or gold[target] == word:
-				return True
-		return False
- 
-	valid = get_valid_moves(n0, n, len(stack))
-	if not stack or (SHIFT in valid and gold[n0] == stack[-1]):
-		return [SHIFT]
-	if gold[stack[-1]] == n0:
-		return [LEFT]
-	costly = set([m for m in MOVES if m not in valid])
-	# If the word behind s0 is its gold head, Left is incorrect
-	if len(stack) &amp;amp;gt;= 2 and gold[stack[-1]] == stack[-2]:
-		costly.add(LEFT)
-	# If there are any dependencies between n0 and the stack,
-	# pushing n0 will lose them.
-	if SHIFT not in costly and deps_between(n0, stack, gold):
-		costly.add(SHIFT)
-	# If there are any dependencies between s0 and the buffer, popping
-	# s0 will lose them.
-	if deps_between(stack[-1], range(n0+1, n-1), gold):
-		costly.add(LEFT)
-		costly.add(RIGHT)
-	return [m for m in MOVES if m not in costly]
+
