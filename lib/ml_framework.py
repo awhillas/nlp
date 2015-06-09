@@ -70,7 +70,7 @@ class MachineLearningModule:  # Interface.
 		"""
 		if path is None:
 			path = self.dir('working')
-		return path + self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
+		return path + '/' + self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
 
 	def dir(self, name):
 		return self._experiment.dir(name)
