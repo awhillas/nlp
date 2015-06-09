@@ -318,6 +318,9 @@ class MaxEntMarkovModel(SequenceModel):
 		prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
 		return tags
 
+	def tag(self, sentance):
+		return self.label(sentance)
+
 	def potential(self, label, prev_label, context, i):
 		""" Wrapper interface to the probabilities method. Sets the current and previous labels in the context before
 			calling the method. Used for prediction on the Viterbi and Forward-Backwards algorithms
@@ -502,7 +505,7 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 				features.append(' '.join((name,) + tuple(args)))
 
 		def add_suffixes(name, word, n):
-			if not Context.is_pseudo(word):  # i.e. it's a pseudo word/class
+			if word is not None and  not Context.is_pseudo(word):  # i.e. it's a pseudo word/class
 				for s in cls.get_suffixes(word, n):
 					add(name, s)
 
