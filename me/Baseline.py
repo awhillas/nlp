@@ -10,8 +10,8 @@ from lib.MaxEntMarkovModel import CollinsNormalisation
 from lib.pos_tagging import tag_all
 
 class Baseline(MachineLearningModule):
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Train'
 		self.model = None
 		self.labeled_sequences = {}
