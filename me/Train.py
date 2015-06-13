@@ -43,6 +43,8 @@ class Train(MachineLearningModule):
 			time.sleep(5)
 
 		self.delete(filename_prefix="_memm")  # Remove temp backup file
+		self.model.save(self.working_dir())
+
 
 		# TODO: Use cross-validation set to tune the regularization param.
 		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
