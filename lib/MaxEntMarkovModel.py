@@ -10,6 +10,7 @@ from scipy.optimize import minimize
 from itertools import izip, izip_longest
 from scipy import array
 import pandas
+from os import path
 import cPickle as pickle
 
 # Common functions
@@ -185,18 +186,22 @@ class MaxEntMarkovModel(SequenceModel):
 		super(MaxEntMarkovModel, self).__init__()
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
-		self.learnt_features = SortedDict()  # all features broken down into counts for each label
+		# self.learnt_features = SortedDict()  # all features broken down into counts for each label
 		self.learnt_features_full = SortedDict()  # full features including labels
 		self.weights = SortedDict()  # lambdas aka feature weights aka model parameters
 		self.total = 0  # Total words seen in training corpus
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 
-	def save(self, path, filename_prefix = '_memm'):
-		pickle.dump(self.__dict__, open(path + '/'+self.__class__.__name__+filename_prefix+".pickle", 'wb'), -1)
+	def save(self, save_dir=None, filename_prefix = '_memm'):
+		if save_dir is None:
+			save_dir = path.join(path.dirname(__file__))
+		pickle.dump(self.__dict__, open(path.join(save_dir, self.__class__.__name__+filename_prefix+".pickle"), 'wb'), -1)
 
-	def load(self, path, filename_prefix = '_memm'):
-		self.__dict__.update(pickle.load(open(path + '/'+self.__class__.__name__+filename_prefix+".pickle")))
+	def load(self, save_dir=None, filename_prefix = '_memm'):
+		if save_dir is None:
+			save_dir = path.join(path.dirname(__file__))
+		self.__dict__.update(pickle.load(open(path.join(save_dir, self.__class__.__name__+filename_prefix+".pickle"))))
 
 	def get_labels(self, word):
 		if word in self.word_tag_count:
@@ -214,10 +219,10 @@ class MaxEntMarkovModel(SequenceModel):
 			for i, word in enumerate(context.words):
 				label = context.labels[i]
 				self.add_tag(word, label)
-				for f in context.features[i]:
-					self.learnt_features.setdefault(f, {})
-					self.learnt_features[f].setdefault(label, 0)
-					self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient.
+				# for f in context.features[i]:
+				# 	self.learnt_features.setdefault(f, {})
+				# 	self.learnt_features[f].setdefault(label, 0)
+				# 	self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient.
 				for f in context.get_features(i, label):
 					self.learnt_features_full.setdefault(f, 0)
 					self.learnt_features_full[f] += 1
@@ -581,7 +586,7 @@ class Context(object):
 			self.features.append([f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))])
 
 	def get_features(self, i, label):
-		return [f+" &"+label for f in self.features[i]]  # merge the feature set with the label
+		return [intern(str(f+" &"+label)) for f in self.features[i]]  # merge the feature set with the label
 
 	@classmethod
 	def is_pseudo(cls, thing):
