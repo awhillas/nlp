@@ -18,12 +18,12 @@ from nltk.data import PathPointer
 from nltk.corpus.reader.util import StreamBackedCorpusView, concat, read_blankline_block
 from nltk.corpus.reader.api import SyntaxCorpusReader, CorpusReader
 
-class ConlluReader(SyntaxCorpusReader):
 
+class ConlluReader(SyntaxCorpusReader):
 	def __init__(self, root, fileids, encoding='utf8',
-				 word_tokenizer=TabTokenizer(),
-				 sent_tokenizer=RegexpTokenizer('\n', gaps=True),
-				 para_block_reader=read_blankline_block):
+					word_tokenizer=TabTokenizer(),
+					sent_tokenizer=RegexpTokenizer('\n', gaps=True),
+					para_block_reader=read_blankline_block):
 
 		CorpusReader.__init__(self, root, fileids, encoding)
 
@@ -45,29 +45,29 @@ class ConlluReader(SyntaxCorpusReader):
 
 	def words(self, fileids=None):
 		return concat([ConlluView(fileid, False, False, False, encoding=enc)
-					   for fileid, enc in self.abspaths(fileids, include_encoding=True)])
+		               for fileid, enc in self.abspaths(fileids, include_encoding=True)])
 
 	def tagged_words(self, fileids=None):
 		return concat([ConlluView(fileid, True, False, False, encoding=enc)
-					   for fileid, enc in self.abspaths(fileids, include_encoding=True)])
+		               for fileid, enc in self.abspaths(fileids, include_encoding=True)])
 
 	def sents(self, fileids=None):
 		return concat([ConlluView(fileid, False, True, False, encoding=enc)
-					   for fileid, enc in self.abspaths(fileids, include_encoding=True)])
+		               for fileid, enc in self.abspaths(fileids, include_encoding=True)])
 
 	def tagged_sents(self, fileids=None):
-			return concat([ConlluView(fileid, True, True, False, encoding=enc)
-						   for fileid, enc in self.abspaths(fileids, include_encoding=True)])
+		return concat([ConlluView(fileid, True, True, False, encoding=enc)
+		               for fileid, enc in self.abspaths(fileids, include_encoding=True)])
 
 	def parsed_sents(self, fileids=None):
-		sents=concat([ConlluView(fileid, False, True, True, encoding=enc)
-					  for fileid, enc in self.abspaths(fileids, include_encoding=True)])
+		sents = concat([ConlluView(fileid, False, True, True, encoding=enc)
+		                for fileid, enc in self.abspaths(fileids, include_encoding=True)])
 		return [DependencyGraph(sent) for sent in sents]
 
 
 class ConlluView(StreamBackedCorpusView):
 	def __init__(self, corpus_file, tagged, group_by_sent, dependencies,
-				 chunk_types=None, encoding='utf8'):
+	             chunk_types=None, encoding='utf8'):
 		self._tagged = tagged
 		self._dependencies = dependencies
 		self._group_by_sent = group_by_sent

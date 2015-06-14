@@ -187,7 +187,7 @@ class MaxEntMarkovModel(SequenceModel):
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
 		# self.learnt_features = SortedDict()  # all features broken down into counts for each label
-		self.learnt_features_full = SortedDict()  # full features including labels
+		self.learnt_features = SortedDict()  # full features including labels
 		self.weights = SortedDict()  # lambdas aka feature weights aka model parameters
 		self.total = 0  # Total words seen in training corpus
 		self.tag_count = {}  # Keep a count of each tag
@@ -201,7 +201,12 @@ class MaxEntMarkovModel(SequenceModel):
 	def load(self, save_dir=None, filename_prefix = '_memm'):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
-		self.__dict__.update(pickle.load(open(path.join(save_dir, self.__class__.__name__+filename_prefix+".pickle"))))
+		file_name = path.join(save_dir, self.__class__.__name__+filename_prefix+".pickle")
+		if path.exists(file_name):
+			self.__dict__.update(pickle.load(open(file_name)))
+			return True
+		else:
+			return False
 
 	def get_labels(self, word):
 		if word in self.word_tag_count:
@@ -209,7 +214,7 @@ class MaxEntMarkovModel(SequenceModel):
 		else:
 			return self.tag_count.keys()
 
-	def train(self, data):
+	def train(self, data, regularization=0.33, maxiter=1):
 		"""
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: true on success, false otherwise
@@ -219,20 +224,17 @@ class MaxEntMarkovModel(SequenceModel):
 			for i, word in enumerate(context.words):
 				label = context.labels[i]
 				self.add_tag(word, label)
-				# for f in context.features[i]:
-				# 	self.learnt_features.setdefault(f, {})
-				# 	self.learnt_features[f].setdefault(label, 0)
-				# 	self.learnt_features[f][label] += 1  # Keep counts of features by tag for gradient.
 				for f in context.get_features(i, label):
-					self.learnt_features_full.setdefault(f, 0)
-					self.learnt_features_full[f] += 1
+					self.learnt_features.setdefault(f, 0)
+					self.learnt_features[f] += 1
 					self.weights.setdefault(f, 1.0)  # initial default to 1.0
+		return self._learn_parameters(data, regularization, maxiter)
 
 	@classmethod
 	def _merge_weight_values(cls, features, values):
 		return SortedDict(izip(features, values))
 
-	def learn_parameters(self, data, regularization=0.5, maxiter=20):
+	def _learn_parameters(self, data, regularization, maxiter):
 		""" Learn the parameter vector (weights) for the model
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: True on success, False otherwise
@@ -250,10 +252,10 @@ class MaxEntMarkovModel(SequenceModel):
 					probabilities = self.probabilities(i, context, v)
 					if probabilities[label] > 0.0:  # Getting zero some times...?
 						log_p += log(probabilities[label])
-			
+
 			# Regularization
 			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
-			
+
  			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max:{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
 			return log_p - regulatiser
 
@@ -275,7 +277,7 @@ class MaxEntMarkovModel(SequenceModel):
 
 			# Actual feature counts + regularize
 			# Assumption: that the param. training is over the same data set as the feature extraction
-			for f, count in self.learnt_features_full.iteritems():
+			for f, count in self.learnt_features.iteritems():
 				dV[f] -= count
 				dV[f] += v[f] * regularization
 
@@ -291,7 +293,7 @@ class MaxEntMarkovModel(SequenceModel):
 			print "No parameters to optimise!?"
 			return False
 
-		self.weights = SortedDict(izip(self.learnt_features_full.iterkeys(), result.x.tolist()))
+		self.weights = SortedDict(izip(self.learnt_features.iterkeys(), result.x.tolist()))
 		if not result.success:
 			print result.message
 		return True

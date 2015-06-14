@@ -3,7 +3,7 @@
 __author__ = "Alexander Whillas <whillas@gmail.com>"
 
 import argparse
-from lib.Experiment import Experiment
+from lib.ml_framework import Experiment
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="""

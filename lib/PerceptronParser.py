@@ -46,10 +46,10 @@ class Parse(object):
 
 class Parser(object):
 	PICKLE_NAME = 'preceptronParserModel.pickle'
-	
+
 	def __init__(self, tagger=None, load=True, save_dir=None):
 		self.model = Perceptron(MOVES)
-		
+
 		if save_dir is None:
 			save_dir = path.dirname(__file__)
 		if load:
@@ -67,7 +67,12 @@ class Parser(object):
 			save_dir = path.join(path.dirname(__file__))
 		self.model.save(path.join(save_dir, Parser.PICKLE_NAME))
 		self.tagger.save(save_dir=save_dir)
-	
+
+	def load(self, save_dir=None):
+		if save_dir is None:
+			save_dir = path.join(path.dirname(__file__))
+		return self.model.load(save_dir)
+
 	def parse(self, words):
 		n = len(words)
 		i = 2; stack = [1]; parse = Parse(n)
@@ -194,23 +199,23 @@ def extract_features(words, tags, n0, n, stack, parse):
 
 	Ws0, Ws1, Ws2 = get_stack_context(depth, stack, words)
 	Ts0, Ts1, Ts2 = get_stack_context(depth, stack, tags)
-   
+
 	Wn0, Wn1, Wn2 = get_buffer_context(n0, n, words)
 	Tn0, Tn1, Tn2 = get_buffer_context(n0, n, tags)
-	
+
 	Vn0b, Wn0b1, Wn0b2 = get_parse_context(n0, parse.lefts, words)
 	Vn0b, Tn0b1, Tn0b2 = get_parse_context(n0, parse.lefts, tags)
-	
+
 	Vn0f, Wn0f1, Wn0f2 = get_parse_context(n0, parse.rights, words)
 	_, Tn0f1, Tn0f2 = get_parse_context(n0, parse.rights, tags)
-  
+
 	Vs0b, Ws0b1, Ws0b2 = get_parse_context(s0, parse.lefts, words)
 	_, Ts0b1, Ts0b2 = get_parse_context(s0, parse.lefts, tags)
 
 	Vs0f, Ws0f1, Ws0f2 = get_parse_context(s0, parse.rights, words)
 	_, Ts0f1, Ts0f2 = get_parse_context(s0, parse.rights, tags)
-	
-	# Cap numeric features at 5? 
+
+	# Cap numeric features at 5?
 	# String-distance
 	Ds0n0 = min((n0 - s0, 5)) if s0 != 0 else 0
 
@@ -239,7 +244,7 @@ def extract_features(words, tags, n0, n, stack, parse):
 	features['tt n0=%s n1=%s' % (Tn0, Tn1)] = 1
 
 	# Add some tag trigrams
-	trigrams = ((Tn0, Tn1, Tn2), (Ts0, Tn0, Tn1), (Ts0, Ts1, Tn0), 
+	trigrams = ((Tn0, Tn1, Tn2), (Ts0, Tn0, Tn1), (Ts0, Ts1, Tn0),
 				(Ts0, Ts0f1, Tn0), (Ts0, Ts0f1, Tn0), (Ts0, Tn0, Tn0b1),
 				(Ts0, Ts0b1, Ts0b2), (Ts0, Ts0f1, Ts0f2), (Tn0, Tn0b1, Tn0b2),
 				(Ts0, Ts1, Ts1))
@@ -264,10 +269,10 @@ class Perceptron(object):
 		self.classes = classes
 		self.weights = {}
 		# The accumulated values, for the averaging. These will be keyed by
-		# feature/clas tuples
+		# feature/class tuples
 		self._totals = defaultdict(int)
 		# The last time the feature was changed, for the averaging. Also
-		# keyed by feature/clas tuples
+		# keyed by feature/class tuples
 		# (tstamps is short for timestamps)
 		self._tstamps = defaultdict(int)
 		# Number of instances seen
@@ -324,7 +329,11 @@ class Perceptron(object):
 		pickle.dump(self.weights, open(save_dir, 'w'))
 
 	def load(self, save_dir):
-		self.weights = pickle.load(open(save_dir))
+		if path.exists(save_dir):
+			self.weights = pickle.load(open(save_dir))
+			return True
+		else:
+			return False
 
 
 class PerceptronTagger(object):
@@ -333,22 +342,16 @@ class PerceptronTagger(object):
 
 	def __init__(self, classes=None, load=True, save_dir=None):
 		self.tagdict = {}
-		if classes:
-			self.classes = classes
-		else:
-			self.classes = set()
+		self.classes = classes if classes else set()
 		self.model = Perceptron(self.classes)
-
-		if save_dir is None:
-			self.model_loc = path.join(path.dirname(__file__), PerceptronTagger.PICKLE_NAME)
-		else:
-			self.model_loc = save_dir
+		save_to = save_dir if save_dir else path.dirname(__file__)
+		self.model_loc = path.join(save_to, PerceptronTagger.PICKLE_NAME)
 		if load:
 			self.load(self.model_loc)
 
 	def tag(self, words, tokenize=True):
 		prev, prev2 = START
-		tags = DefaultList('') 
+		tags = DefaultList('')
 		context = START + [self._normalize(w) for w in words] + END
 		for i, word in enumerate(words):
 			tag = self.tagdict.get(word)
@@ -373,9 +376,10 @@ class PerceptronTagger(object):
 			random.shuffle(sentences)
 		self.end_training(save_loc)
 
-	def save(self):
+	def save(self, loc=None):
+		loc = loc if loc else self.model_loc
 		# Pickle as a binary file
-		pickle.dump((self.model.weights, self.tagdict, self.classes), open(self.model_loc, 'wb'), -1)
+		pickle.dump((self.model.weights, self.tagdict, self.classes), open(loc, 'wb'), -1)
 
 	def train_one(self, words, tags):
 		prev, prev2 = START
@@ -388,10 +392,14 @@ class PerceptronTagger(object):
 				self.model.update(tags[i], guess, feats)
 			prev2 = prev; prev = guess
 
-	def load(self, loc):
-		w_td_c = pickle.load(open(loc, 'rb'))
-		self.model.weights, self.tagdict, self.classes = w_td_c
-		self.model.classes = self.classes
+	def load(self, loc=None):
+		loc = loc if loc else self.model_loc
+		if path.exists(loc):
+			self.model.weights, self.tagdict, self.classes = pickle.load(open(loc, 'rb'))
+			self.model.classes = self.classes
+			return True
+		else:
+			return False
 
 	def _normalize(self, word):
 		if '-' in word and word[0] != '-':
@@ -433,7 +441,7 @@ class PerceptronTagger(object):
 		"""Make a tag dictionary for single-tag words."""
 		counts = defaultdict(lambda: defaultdict(int))
 		for sent in sentences:
-			for word, tag in zip(sent[0], sent[1]):
+			for word, tag in sent: #zip(sent[0], sent[1]):
 				counts[word][tag] += 1
 				self.classes.add(tag)
 		freq_thresh = 20
