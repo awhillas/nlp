@@ -66,7 +66,7 @@ class Parser(object):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
 		self.model.save(path.join(save_dir, Parser.PICKLE_NAME))
-		self.tagger.save(save_dir=save_dir)
+		self.tagger.save()
 
 	def load(self, save_dir=None):
 		if save_dir is None:

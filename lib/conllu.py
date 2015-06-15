@@ -9,12 +9,9 @@
 # For license information, see LICENSE.TXT
 
 import codecs
-
 from nltk.parse import DependencyGraph
 from nltk.tokenize import *
-
 from nltk.data import PathPointer
-
 from nltk.corpus.reader.util import StreamBackedCorpusView, concat, read_blankline_block
 from nltk.corpus.reader.api import SyntaxCorpusReader, CorpusReader
 
