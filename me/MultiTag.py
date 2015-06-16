@@ -9,8 +9,8 @@ from lib.conllu import ConlluReader
 import pandas
 
 class MultiTag(MachineLearningModule):
-	def __init__(self, config, data_set_id):
-		MachineLearningModule.__init__(self, config, data_set_id)
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Train'
 		self.model = None
 		self.labeled_sequences = {}
@@ -22,7 +22,7 @@ class MultiTag(MachineLearningModule):
 		# Baseline model
 		for s in data.sents(self.config('testing_file')):
 			print s
-			a, b, c = self.model.tag_probability_distributions(s)
+			fwd, bkw, posterior = self.model.tag_probability_distributions(s)
 		# self.labeled_sequences = self.model.for_all(
 		# 	data.sents(self.config('testing_file')),
 		# 	self.model.tag_probability_distributions
