@@ -4,8 +4,9 @@ from sortedcontainers import SortedDict
 import re
 import csv
 import StringIO
+from ascii_graph import Pyasciigraph
 
-class Measure:
+class Measure(object):
 	""" Class for scoring binary classification models
 	"""
 	def __init__(self):
@@ -67,7 +68,7 @@ class Measure:
 	def __str__(self):
 		return unicode(self).encode('utf-8')
 
-class ConfusionMatrix:
+class ConfusionMatrix(object):
 	"""
 	A specific table layout that allows visualization of the performance of an algorithm.
 	Each column of the matrix represents the instances in a predicted class, while each row represents the instances in
@@ -141,4 +142,48 @@ class ConfusionMatrix:
 
 		return word_count, word_error, sentence_errors
 
+class POSTaggerMeasure(object):
+	""" Class to measure the performance of a POS Tagger. """
+	def __init__(self, classes):
+		self.matrix = ConfusionMatrix(classes)
+		self.sent_length_totals = {}
+		self.sent_correct = {}
 
+	def test(self, words, predicted, gold, verbose = False):
+		error_count = 0
+		sentence_error = False
+		length = len(words)
+		self.sent_length_totals.setdefault(length, 0)
+		self.sent_length_totals[length] += 1
+
+		for j, w in enumerate(words):
+			self.matrix.add(gold[j], predicted[j])
+			if predicted[j] != gold[j]:
+				error_count += 1
+				sentence_error = True
+
+		if not sentence_error:
+			self.sent_correct.setdefault(length, 0)
+			self.sent_correct[length] += 1
+
+		if verbose:
+			POSTaggerMeasure.print_solution(words, predicted, gold)
+			correct = len(words) - error_count
+			print "Correct:", correct, "/", len(words), ", rate:", "%.1f" % (float(correct) / len(words) * 100), "%"
+
+	def print_tally(self):
+		print "Tag:", "{:>4.2f}".format(self.matrix.precision() * 100), "%"
+		print "Sentence: ", "{:>4.2f}".format(float(sum(self.sent_correct.values())) / sum(self.sent_length_totals.values()) * 100), "%"
+		graph = Pyasciigraph()
+		histogram = [(i, a/b) for (i,a),b in zip(self.sent_correct.iteritems(), self.sent_length_totals.itervalues())]
+		for line in  graph.graph('% Correct by Sentence length', histogram):
+			print(line)
+
+	@classmethod
+	def print_solution(cls, sentence, guess, gold):
+		row_format = '{0}'
+		for k, w in enumerate(sentence):
+			row_format += "{"+str(k+1)+":<"+str(max(len(w), len(gold[k]))+1)+"}"
+		print row_format.format("words: ", *sentence)
+		print row_format.format("gold:  ", *gold)
+		print row_format.format("guess: ", *guess)
