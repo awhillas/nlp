@@ -73,10 +73,10 @@ class Parser(object):
 			save_dir = path.join(path.dirname(__file__))
 		return self.model.load(save_dir)
 
-	def parse(self, words):
+	def parse(self, words, tags):
 		n = len(words)
 		i = 2; stack = [1]; parse = Parse(n)
-		tags = self.tagger.tag(words)
+		# tags = self.tagger.tag(words)
 		while stack or (i+1) < n:
 			features = extract_features(words, tags, i, n, stack, parse)
 			scores = self.model.score(features)
@@ -88,7 +88,8 @@ class Parser(object):
 	def train_one(self, itn, words, gold_tags, gold_heads):
 		n = len(words)
 		i = 2; stack = [1]; parse = Parse(n)
-		tags = self.tagger.tag(words)
+		# tags = self.tagger.tag(words)
+		tags = gold_tags  # we pass in all tags now
 		while stack or (i + 1) < n:
 			features = extract_features(words, tags, i, n, stack, parse)
 			scores = self.model.score(features)
@@ -400,6 +401,9 @@ class PerceptronTagger(object):
 			return True
 		else:
 			return False
+
+	def get_classes(self):
+		return self.classes
 
 	def _normalize(self, word):
 		if '-' in word and word[0] != '-':
