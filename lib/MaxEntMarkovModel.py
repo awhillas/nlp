@@ -192,6 +192,7 @@ class MaxEntMarkovModel(SequenceModel):
 		self.total = 0  # Total words seen in training corpus
 		self.tag_count = {}  # Keep a count of each tag
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
+		self.tagdict = {}  # To be used for fast lookup of unambigous words
 
 	def save(self, save_dir=None, filename_prefix = '_memm'):
 		if save_dir is None:
@@ -214,6 +215,20 @@ class MaxEntMarkovModel(SequenceModel):
 		else:
 			return self.tag_count.keys()
 
+	def guess_tag(self, word):
+		guess = self.tagdict.get(word)
+		return [guess] if guess else self.tag_count.keys()
+
+	def guess_tags(self, sentence):
+		tags = []
+		for word in sentence:
+			guess = self.tagdict.get(word)
+			tags.append(guess) if guess else tags.append('')
+		return tags
+
+	def get_classes(self):
+		return self.tag_count.keys()
+
 	def train(self, data, regularization=0.33, maxiter=1):
 		"""
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
@@ -228,6 +243,7 @@ class MaxEntMarkovModel(SequenceModel):
 					self.learnt_features.setdefault(f, 0)
 					self.learnt_features[f] += 1
 					self.weights.setdefault(f, 1.0)  # initial default to 1.0
+		self._make_tagdict()
 		return self._learn_parameters(data, regularization, maxiter)
 
 	@classmethod
@@ -319,14 +335,21 @@ class MaxEntMarkovModel(SequenceModel):
 		:param seq: Lists of words to tag
 		:return: List of tags.
 		"""
+		sentence = self.normaliser.sentence(seq)
 		all_tags = self.tag_count.keys()
-		context = Context((seq, [''] * len(seq)), self.feature_templates)
-		start_p = dict([(t, self.potential(t, None, context, 0)) for t in all_tags])
-		prob, tags = Viterbi.viterbi(seq, all_tags, start_p, self)
+		# Try and guess the tags for all the words first to save time and increase the features.
+		tags = self.guess_tags(sentence)
+		context = Context((sentence, tags), self.feature_templates)
+		if tags[0]:
+			start_p = dict.fromkeys(all_tags, 0.01/(len(all_tags)-1))
+			start_p[tags[0]] = 0.99
+		else:
+			start_p = dict([(t, self.potential(t, None, context, 0)) for t in all_tags])
+		prob, tags = Viterbi.viterbi(sentence, all_tags, start_p, self)
 		return tags
 
-	def tag(self, sentance):
-		return self.label(sentance)
+	def tag(self, sentence):
+		return self.label(sentence)
 
 	def potential(self, label, prev_label, context, i):
 		""" Wrapper interface to the probabilities method. Sets the current and previous labels in the context before
@@ -378,6 +401,19 @@ class MaxEntMarkovModel(SequenceModel):
 		self.tag_count[t] += 1
 		self.word_tag_count.setdefault(w, defaultdict(int))
 		self.word_tag_count[w][t] += 1
+
+	def _make_tagdict(self):
+		"""Make a tag dictionary for single-tag words."""
+		# freq_thresh = 10  # doesn't scale to different data set sizes :(
+		ambiguity_thresh = 0.97
+		for word, tag_freqs in self.word_tag_count.items():
+			tag, mode = max(tag_freqs.items(), key=lambda item: item[1])
+			n = sum(tag_freqs.values())
+			# Don't add rare words to the tag dictionary
+			# Only add quite unambiguous words
+			# if n >= freq_thresh and (float(mode) / n) >= ambiguity_thresh:
+			if (float(mode) / n) >= ambiguity_thresh:
+				self.tagdict[word] = tag
 
 
 class CollinsNormalisation(WordNormaliser):
@@ -608,7 +644,7 @@ class ForwardBackward(object):
 		self.model = model  # needs to implement interface: potential(state_from, state_to, context_index)
 
 	def p(self, state_from, state_to, seq, i):
-		context  = Context((seq, [''] * len(seq)))
+		context  = Context((seq, [''] * len(seq)))  # TODO: this works in forwards but not backwards + should guess_tags()
 		return self.model.potential(state_to, state_from, context, i)
 
 	def forward_backward(self, unlabeled_sequence, states):
@@ -705,8 +741,8 @@ class ForwardBackward(object):
 			posterior.append(normalize({st: fwd[i][st] * bkw[i][st] for st in states}))
 
 		show(posterior, "Posteriors")
-		# return fwd, bkw, posterior
-		return posterior
+		return fwd, bkw, posterior
+		#return posterior
 
 
 class Viterbi(object):
@@ -741,8 +777,9 @@ class Viterbi(object):
 			x = seq[j]  # current word
 			for s in all_states:
 				context = Context(list(izip_longest(seq, path[s], fillvalue='')))
-				# We only consider labels we have seen for this word (see: get_labels(word))
+				# We only consider labels we have seen for this word (see: get_labels(word)) or all if unseen.
 				(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.get_labels(seq[j-1]) )
+				#(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.guess_tag(seq[j-1]) )
 				V[j][s] = prob
 				new_path[s] = path[state] + [s]
 			# Don't need to remember the old paths
