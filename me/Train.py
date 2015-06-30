@@ -10,41 +10,24 @@ from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, Coll
 import time
 
 class Train(MachineLearningModule):
-	def __init__(self, experiment):
-		MachineLearningModule.__init__(self, experiment)
-		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
-
 	def run(self, _):
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		training_data = data.tagged_sents(self.config('training_file'))
-		# TODO: Use cross-validation set to tune the regularization param.
-		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
-		# iterations = int(self.config('iterations'))
-		reg = float(self.config('regularization'))
-		mxitr = int(self.config('maxiter'))
+		# cv_data = data.tagged_sents(self.config('cross_validation_file')) # TODO: Use cross-validation set to tune the regularization param.
+		reg = self.log_me('Reg.', float(self.config('regularization')))
+		mxitr = self.log_me('Max iter.', int(self.config('maxiter')))
 
-		if not self.load(filename_prefix="_memm"):
-			print "Training MaxEnt model..."
-			# Get data
+		print "Training MaxEnt model..."
 
-			# Learn features
-			self.model.train(training_data, regularization=reg, maxiter=mxitr)
-			if not self._experiment.no_cache:
-				self.model.save(self.working_dir())
-			#self._experiment.log["Features"] = len(self.model.weights)  # TODO: doesn't seem to make it ?
-			print "Features:", len(self.model.weights)
-
-		# Learn feature weights
-
-		# TODO Use the CV training set to tune the regularization_parameter of the MaxEntMarkovModel i.e. smaller param. learning cycles
-
-		# for i in range(0, iterations):
-		# 	print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
-		# 	self.model.learn_parameters(training_data)
-		# 	if not self._experiment.no_save:
-		# 		self.save(filename_prefix="_memm")
-		# 	time.sleep(5)
-		# self.delete(filename_prefix="_memm")  # Remove temp backup file
-		# self.model.save(self.working_dir())
+		# Learn features
+		self.model.train(training_data, regularization=reg, maxiter=mxitr)
+		self.log_me("Features", len(self.model.weights))  # TODO: doesn't seem to make it ?
 
 		return True
+
+	def load(self, path = None, filename_prefix = ''):
+		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
+		self.model.load(path, filename_prefix)
+
+	def save(self, path = None, filename_prefix = ''):
+		self.model.save(path, filename_prefix)

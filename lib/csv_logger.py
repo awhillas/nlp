@@ -1,6 +1,6 @@
 __author__ = 'Alexander Whillas'
 
-import os, csv
+import os, csv, datetime, time
 
 
 class CSVLogger(object):
@@ -12,7 +12,7 @@ class CSVLogger(object):
 		if not os.path.exists(self.file_path):
 			with open(self.file_path, 'wb') as f:
 				log = csv.writer(f, delimiter=',')
-				log.writerow(["LogId"] + columns)
+				log.writerow(['ID', 'Date'] + columns)
 		else:
 			self.lines = file_length(self.file_path)
 
@@ -20,10 +20,11 @@ class CSVLogger(object):
 		""" Add a row to the end of the file.\
 			:return: The log Id/line-number just added.
 		"""
+		st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
 		if os.path.exists(self.file_path):
 			with open(self.file_path, 'a') as f:
-				self.lines += 1
-				output = [self.lines]
+				self.lines -= 1
+				output = [self.lines, st]  # Add standard data
 				for col in self.columns:
 					if col in kwargs:
 						output.append(kwargs[col])

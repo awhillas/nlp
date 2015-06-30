@@ -1,4 +1,7 @@
-"""A simple implementation of a greedy transition-based parser. Released under BSD license."""
+"""
+A simple implementation of a greedy transition-based parser. Released under BSD license.
+Original at: https://gist.github.com/syllog1sm/10343947
+"""
 from os import path
 import sys
 from collections import defaultdict
@@ -44,54 +47,86 @@ class Parse(object):
 			self.rights[head].append(child)
 
 
-class Parser(object):
+class IPerceptronParser(object):
 	PICKLE_NAME = 'preceptronParserModel.pickle'
 
-	def __init__(self, tagger=None, load=True, save_dir=None):
+	def __init__(self,load=True, save_dir=None):
 		self.model = Perceptron(MOVES)
-
-		if save_dir is None:
-			save_dir = path.dirname(__file__)
-		if load:
-			self.model.load(path.join(save_dir, Parser.PICKLE_NAME))
-
-		if tagger is None:
-			self.tagger = PerceptronTagger(load=load)
-		else:
-			self.tagger = tagger
-
+		self.file_path = path.join(save_dir if save_dir else path.dirname(__file__), Parser.PICKLE_NAME)
 		self.confusion_matrix = defaultdict(lambda: defaultdict(int))
+		if load:
+			self.model.load(self.file_path)
 
 	def save(self, save_dir=None):
-		if save_dir is None:
-			save_dir = path.join(path.dirname(__file__))
-		self.model.save(path.join(save_dir, Parser.PICKLE_NAME))
-		self.tagger.save()
+		save_path = path.join(save_dir, Parser.PICKLE_NAME) if save_dir else self.file_path
+		self.model.save(save_path)
 
 	def load(self, save_dir=None):
-		if save_dir is None:
-			save_dir = path.join(path.dirname(__file__))
-		return self.model.load(save_dir)
+		load_path = path.join(save_dir, Parser.PICKLE_NAME) if save_dir else self.file_path
+		return self.model.load(load_path)
 
 	def parse(self, words, tags):
+		return NotImplemented
+
+	def train_one(self, itn, words, tags, gold_heads):
+		return NotImplemented
+
+
+class Parser(IPerceptronParser):
+
+	def parse(self, in_words, in_tags):
+		words, tags, _ = format_data(list(in_words), list(in_tags), [])
 		n = len(words)
 		i = 2; stack = [1]; parse = Parse(n)
-		# tags = self.tagger.tag(words)
 		while stack or (i+1) < n:
 			features = extract_features(words, tags, i, n, stack, parse)
 			scores = self.model.score(features)
 			valid_moves = get_valid_moves(i, n, len(stack))
 			guess = max(valid_moves, key=lambda move: scores[move])
 			i = transition(guess, i, stack, parse)
-		return tags, parse.heads
+		return deformat(parse.heads)
 
-	def train_one(self, itn, words, gold_tags, gold_heads):
+	def train_one(self, itn, in_words, in_tags, in_gold_heads):
+		words, tags, gold_heads = format_data(list(in_words), list(in_tags), in_gold_heads)
 		n = len(words)
 		i = 2; stack = [1]; parse = Parse(n)
-		# tags = self.tagger.tag(words)
-		tags = gold_tags  # we pass in all tags now
 		while stack or (i + 1) < n:
 			features = extract_features(words, tags, i, n, stack, parse)
+			scores = self.model.score(features)
+			valid_moves = get_valid_moves(i, n, len(stack))
+			gold_moves = get_gold_moves(i, n, stack, parse.heads, gold_heads)
+			guess = max(valid_moves, key=lambda move: scores[move])
+			assert gold_moves
+			best = max(gold_moves, key=lambda move: scores[move])
+			self.model.update(best, guess, features)
+			i = transition(guess, i, stack, parse)
+			self.confusion_matrix[best][guess] += 1
+		return len([i for i in range(n-1) if parse.heads[i] == gold_heads[i]])
+
+
+class AmbiguousParser(IPerceptronParser):
+	""" Uses Multi POS Tags maintaining some ambiguity in the pipe """
+
+	def parse(self, in_words, in_tags, in_multi_tags):
+		words, tags, _ = format_data(list(in_words), list(in_tags), [])
+		multi_tags = pad_multi_tags(in_multi_tags)
+		n = len(words)
+		i = 2; stack = [1]; parse = Parse(n)
+		while stack or (i+1) < n:
+			features = extract_features(words, tags, i, n, stack, parse, multi_tags)
+			scores = self.model.score(features)
+			valid_moves = get_valid_moves(i, n, len(stack))
+			guess = max(valid_moves, key=lambda move: scores[move])
+			i = transition(guess, i, stack, parse)
+		return deformat(parse.heads)
+
+	def train_one(self, in_words, in_tags, in_gold_heads, in_multi_tags):
+		words, tags, gold_heads = format_data(list(in_words), list(in_tags), in_gold_heads)
+		multi_tags = pad_multi_tags(in_multi_tags)
+		n = len(words)
+		i = 2; stack = [1]; parse = Parse(n)
+		while stack or (i + 1) < n:
+			features = extract_features(words, tags, i, n, stack, parse, multi_tags)
 			scores = self.model.score(features)
 			valid_moves = get_valid_moves(i, n, len(stack))
 			gold_moves = get_gold_moves(i, n, stack, parse.heads, gold_heads)
@@ -156,7 +191,17 @@ def get_gold_moves(n0, n, stack, heads, gold):
 	return [m for m in MOVES if m not in costly]
 
 
-def extract_features(words, tags, n0, n, stack, parse):
+def extract_features(words, tags, n0, n, stack, parse, pos_multi = []):
+	"""  stack|s0, n0|buffer, [left,right]
+	:param words: list of words
+	:param tags: corresponding list of POS tags
+	:param n0: position in the buffer
+	:param n: length of the buffer (words list)
+	:param stack: parser stack
+	:param parse: current Parse object
+	:param pos_multi: list of dicts of {POS_tags -> probability}
+	:return: dict of context features
+	"""
 	def get_stack_context(depth, stack, data):
 		if depth >= 3:
 			return data[stack[-1]], data[stack[-2]], data[stack[-3]]
@@ -189,8 +234,8 @@ def extract_features(words, tags, n0, n, stack, parse):
 
 	features = {}
 	# Set up the context pieces --- the word (W) and tag (T) of:
-	# S0-2: Top three words on the stack
-	# N0-2: First three words of the buffer
+	# s0-2: Top three words on the stack
+	# n0-2: First three words of the buffer
 	# n0b1, n0b2: Two leftmost children of the first word of the buffer
 	# s0b1, s0b2: Two leftmost children of the top word of the stack
 	# s0f1, s0f2: Two rightmost children of the top word of the stack
@@ -207,7 +252,7 @@ def extract_features(words, tags, n0, n, stack, parse):
 	Vn0b, Wn0b1, Wn0b2 = get_parse_context(n0, parse.lefts, words)
 	Vn0b, Tn0b1, Tn0b2 = get_parse_context(n0, parse.lefts, tags)
 
-	Vn0f, Wn0f1, Wn0f2 = get_parse_context(n0, parse.rights, words)
+	#Vn0f, Wn0f1, Wn0f2 = get_parse_context(n0, parse.rights, words)  # not used..?
 	_, Tn0f1, Tn0f2 = get_parse_context(n0, parse.rights, tags)
 
 	Vs0b, Ws0b1, Ws0b2 = get_parse_context(s0, parse.lefts, words)
@@ -225,6 +270,20 @@ def extract_features(words, tags, n0, n, stack, parse):
 	for w in (Wn0, Wn1, Wn2, Ws0, Ws1, Ws2, Wn0b1, Wn0b2, Ws0b1, Ws0b2, Ws0f1, Ws0f2):
 		if w:
 			features['w=%s' % w] = 1
+
+	# Add multi-POS tag unigrams
+	if pos_multi and n0 < len(pos_multi):
+		dick = get_stack_context_2D(depth, stack, pos_multi)
+		dick.update(get_buffer_context_2D(n0, n, pos_multi))
+		for word in [n0, s0]:
+			for parze in [parse.rights, parse.lefts]:
+				something = get_parse_context_2D(word, parze, pos_multi)
+				dick.update(something)
+		#dick.update({((k,v) for k,v in get_parse_context_2D(word, parze, pos_multi)) for word in [n0, s0] for parze in [parse.rights, parse.lefts]})
+		for tag, prob in dick.iteritems():
+			if prob < 1.0:
+				features['t=p(%s)' % tag] = prob
+	# else:  # TODO: Test if we should just do away with the single POS tags
 	for t in (Tn0, Tn1, Tn2, Ts0, Ts1, Ts2, Tn0b1, Tn0b2, Ts0b1, Ts0b2, Ts0f1, Ts0f2):
 		if t:
 			features['t=%s' % t] = 1
@@ -263,6 +322,31 @@ def extract_features(words, tags, n0, n, stack, parse):
 			features['val/d-%d %s %d' % (i, w_t, v_d)] = 1
 	return features
 
+def format_data(words, tags, heads):
+	h = [None]
+	for head in heads[1:]:  # Assume the first item is None
+		h.append(head if head > 0 else len(heads))  # ROOT is placed at end of sentence not 0?
+	w = pad_tokens(list(words)); t = pad_tokens(list(tags))
+	return w, t, h
+
+def deformat(heads):
+	# Set the head to be zero again
+	root = len(heads)
+	for i, _ in enumerate(heads):
+		if heads[i] == root:
+			heads[i] = 0
+	return heads
+
+def pad_tokens(tokens):
+	tokens.insert(0, '<start>')
+	tokens.append('ROOT')
+	return tokens
+
+def pad_multi_tags(tags):
+	tags.insert(0, {'<start>': 1.0})
+	tags.append({'ROOT': 1.0})
+	return tags
+
 
 class Perceptron(object):
 	def __init__(self, classes=None):
@@ -295,7 +379,8 @@ class Perceptron(object):
 				continue
 			weights = all_weights[feat]
 			for clas, weight in weights.items():
-				scores[clas] += value * weight
+				if clas:
+					scores[clas] += value * weight
 		return scores
 
 	def update(self, truth, guess, features):
@@ -338,7 +423,7 @@ class Perceptron(object):
 
 
 class PerceptronTagger(object):
-	"""Greedy Averaged Perceptron tagger"""
+	""" Greedy Averaged Perceptron tagger """
 	PICKLE_NAME = 'perceptronTaggerModel.pickle'
 
 	def __init__(self, classes=None, load=True, save_dir=None):
@@ -350,7 +435,7 @@ class PerceptronTagger(object):
 		if load:
 			self.load(self.model_loc)
 
-	def tag(self, words, tokenize=True):
+	def tag(self, words):
 		prev, prev2 = START
 		tags = DefaultList('')
 		context = START + [self._normalize(w) for w in words] + END
@@ -445,7 +530,7 @@ class PerceptronTagger(object):
 		"""Make a tag dictionary for single-tag words."""
 		counts = defaultdict(lambda: defaultdict(int))
 		for sent in sentences:
-			for word, tag in sent: #zip(sent[0], sent[1]):
+			for word, tag in zip(sent[0], sent[1]):
 				counts[word][tag] += 1
 				self.classes.add(tag)
 		freq_thresh = 20
@@ -511,10 +596,35 @@ def read_conll(loc):
 		yield words, tags, heads, labels
 
 
-def pad_tokens(tokens):
-	tokens.insert(0, '<start>')
-	tokens.append('ROOT')
+# These 3 functions are for POS-Multi tagging.
+# (outside here so i can test them)
 
+def get_stack_context_2D(depth, stack, data):
+	out = []
+	if depth > 0:
+		for i in range(1, depth+1):
+			out += [(tag, prob) for tag, prob in data[stack[-i]].iteritems()]
+	return dict(out)
+
+def get_buffer_context_2D(i, n, data):
+	out = []
+	for j in range(i, i + min(n - i - 1, 2 ) + 1):
+		out += [(tag, prob) for tag, prob in data[j].iteritems()]
+	return dict(out)
+
+def get_parse_context_2D(word, deps, data):
+	# similar get_parse_context() except we don't return valency
+	out = []
+	if word == -1:
+		return out
+	deps = deps[word]
+	valency = len(deps)
+	if not valency:
+		return out
+	else:
+		for i in range(1, min(3, valency+1)):
+			out += [(tag, prob) for tag, prob in data[deps[-i]].iteritems()]
+	return dict(out)
 
 def main(model_dir, train_loc, heldout_in, heldout_gold):
 	# if not path.exists(model_dir):

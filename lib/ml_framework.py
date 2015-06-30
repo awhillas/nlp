@@ -48,13 +48,14 @@ class Experiment(object):
 
 			# Load the next script in the que
 			m = self.load(script)
+			m.load(self.dir('working'))
 
 			# Load save previous module if not present
 			if previous_module is None and not self.no_cache:
 				if not m.input_module is None:
 					previous_module = self.load(m.input_module)
-					previous_module.load()
-					print "Loaded: ", previous_module.__class__.__name__
+					previous_module.load(self.dir('working'))
+					print "Loaded:", previous_module.__class__.__name__
 
 			# Do the work
 			success = m.run(previous_module)
@@ -64,7 +65,7 @@ class Experiment(object):
 			if success:
 				if not self.no_save:
 					print "Saving", script
-					m.save(self.dir('working'))
+					m.save(self, self.dir('working'))
 			else:
 				# Need to pull and error here
 				print str(script) + " failed! Work not saved."
@@ -94,18 +95,17 @@ class Experiment(object):
 
 	@classmethod
 	def check_path(cls, dir):
-		""" Check to see if a path exists and if not then create it """
+		""" Check to see if a path exists and if not then create it. """
 		if not path.exists(dir):
 			os.makedirs(dir)
 
 	def load(self, name):
-		"""
-		Dynamically load a module and instantiate its class.
-		"""
+		""" Dynamically load a module and instantiate its class."""
 		package, cls = name.rsplit('.', 1)
 		module = importlib.import_module(name, package)
 		m = getattr(module, cls)
-		return m(self)
+		new = m(self)
+		return new
 
 
 class MachineLearningModule:  # Interface.
@@ -114,14 +114,12 @@ class MachineLearningModule:  # Interface.
 		or simply loaded from a previous run in case of crashes in the middle of long
 		pipelines or if it is redundant to keep recalculating the same thing.
 	"""
+	PREVIOUS_MODULE = None
 
 	def __init__(self, experiment):
-		"""
-		:param config: Instance of ConfigParser.
-		:param data_set_id: data set ID which should be a group in the .ini file
-		"""
-		self.input_module = None
 		self._experiment = experiment
+		self.keepers = {}  # what to keep and pass on down the pipe. All that gets saved to disk.
+		self.input_module = self.PREVIOUS_MODULE  # Expected model to run before this one. This is clumsy.
 
 	def run(self, previous):
 		""" Do the work
@@ -136,9 +134,7 @@ class MachineLearningModule:  # Interface.
 		full_path = self.get_save_file_name(path, filename_prefix)
 		copy = dict(self.__dict__)
 		copy.pop('_experiment')  # don't save
-		with open(full_path, 'wb') as f:
-			pickle.dump(copy, f, 2)
-		print "Saved", full_path
+		self.backup(copy, full_path)
 		return full_path
 
 	def load(self, path = None, filename_prefix = ''):
@@ -146,15 +142,28 @@ class MachineLearningModule:  # Interface.
 			Instead of of run()?
 		"""
 		full_path = self.get_save_file_name(path, filename_prefix)
-		if not os.path.exists(full_path):
-			print "Could not load", full_path
-			return False
-		with open(full_path, 'rb') as f:
-			tmp_dict = pickle.load(f)
+		tmp_dict = self.restore(full_path)
 		tmp_dict['_experiment'] = self._experiment
 		self.__dict__.update(tmp_dict)
 		print "Loaded", full_path
 		return full_path
+
+	@classmethod
+	def backup(cls, data, path):
+		""" Save the given data. """
+		with open(path, 'wb') as f:
+			pickle.dump(data, f, 2)
+			print "Saved", path
+
+	@classmethod
+	def restore(cls, path):
+		""" Load the given file and return it. """
+		if not path.exists(path):
+			print "Could not load", path
+			return False
+		else:
+			with open(path, 'rb') as f:
+				return pickle.load(f)
 
 	def delete(self, path = None, filename_prefix = ''):
 		""" Remove saved file
@@ -196,9 +205,15 @@ class MachineLearningModule:  # Interface.
 	def out(self, file_name, text):
 		self._experiment.out(file_name, text)
 
-	def log(self, file_name, text):
-		self._experiment.log(file_name, text)
+	def log(self):
+		self._experiment.log
 
+	def log_me(self, key, value):
+		self._experiment.log.update({key: value})
+		return value
+
+	def cols(self):
+		return self._experiment.log.keys()
 
 # Fix for picking instance methods
 

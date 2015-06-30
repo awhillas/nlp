@@ -194,12 +194,12 @@ class MaxEntMarkovModel(SequenceModel):
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 		self.tagdict = {}  # To be used for fast lookup of unambigous words
 
-	def save(self, save_dir=None, filename_prefix = '_memm'):
+	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
 		pickle.dump(self.__dict__, open(path.join(save_dir, self.__class__.__name__+filename_prefix+".pickle"), 'wb'), -1)
 
-	def load(self, save_dir=None, filename_prefix = '_memm'):
+	def load(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
 		file_name = path.join(save_dir, self.__class__.__name__+filename_prefix+".pickle")
@@ -207,6 +207,7 @@ class MaxEntMarkovModel(SequenceModel):
 			self.__dict__.update(pickle.load(open(file_name)))
 			return True
 		else:
+			print "MaxEntMarkovModel not loaded! File does not exist?", file_name
 			return False
 
 	def get_labels(self, word):
@@ -367,9 +368,33 @@ class MaxEntMarkovModel(SequenceModel):
 		# Need to recreate a new Context with the new tags so the features get regenerated.
 		return self.probabilities(i, Context((context.words, tags), self.feature_templates), self.weights)[label]
 
-	def tag_probability_distributions(self, unlabeled_sequence):
+	def potential_backward(self, prev_label, label, context, i):
+		""" Same as potential() but we're going in the other direction for the backwards part of the forward-backwards
+			algo.
+		"""
+		tags = context.labels
+		tags[i] = label
+		if i > 0:
+			tags[i+1] = prev_label
+		# Need to recreate a new Context with the new tags so the features get regenerated.
+		return self.probabilities(i, Context((context.words, tags), self.feature_templates), self.weights)[label]
+
+	def tag_probability_distributions(self, context):
 		fb = ForwardBackward(self)
-		return fb.forward_backward(unlabeled_sequence, self.tag_count.keys())
+		return fb.forward_backward(context, self.tag_count.keys())
+
+	def multi_tag(self, unlabeled_sequence, ambiguity = 0.3):
+		# From: Curran, Clark, Vadas (2006) Multi-Tagging for Lexicalized-Grammar Parsing
+		tags = []
+		normalised_sentence = self.normaliser.sentence(unlabeled_sequence)
+		context = Context((normalised_sentence, self.guess_tags(normalised_sentence)))
+		distros = self.tag_probability_distributions(context)  # tag probability distributions for each word
+		for i, tag_probs in enumerate(distros):
+			c_max = max(tag_probs.iterkeys(), key=(lambda key: tag_probs[key]))
+			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if p > ambiguity * tag_probs[c_max] )
+			tags.append(top_tags)
+		show(tags, unlabeled_sequence)
+		return tags
 
 	def probabilities(self, i, context, v=None):
 		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
@@ -433,24 +458,38 @@ class CollinsNormalisation(WordNormaliser):
 
 	@classmethod
 	def word(cls, word):
-		# return cls.pseudo_map_digits(word)
-		out = cls.pseudo_map_digits(word)
+		out = cls.web_entites(word)
 		if out == word:
-			return cls.junk(word)
+			out = cls.pseudo_map_digits(out)
+		if out == word:
+			out = cls.junk(word)
+		if out == word:
+			return out.lower()  # is this a good idea?
 		else:
 			return out
 
 	@classmethod
-	def junk(cls, word):
+	def web_entites(cls, word):
 		if word in cls.EMOS:
 			# print '!emoticon!', word
 			return '!emoticon!'
+		if bool(cls.EMAIL_REGEX.search(word.lower())) \
+				or word.count('@') == 1:
+			# print '!email!', word
+			return '!email!'
+		if bool(cls.URL_REGEX.search(word)):
+			#print '!url!', word
+			return '!url!'
+		return word
+
+	@classmethod
+	def junk(cls, word):
 		if len(word) > 1 \
 				and "'" not in word \
 				and ('-' not in word or word.count('-') > 2):
 			if all(i in string.punctuation for i in word):
 				return '!allPunctuation!'
-			elif not all(i in string.letters for i in word):
+			if not all(i in string.letters for i in word):
 				# TODO: name titles i.e. Mr. Dr. etc. St. i.e e.g. T.V.
 				acro = '.'.join(''.join(c for c in word if c not in '.'))
 				if acro == word or acro+'.' == word:
@@ -467,8 +506,7 @@ class CollinsNormalisation(WordNormaliser):
 				else:
 					# print '!mixedUp!', word
 					return '!mixedUp!'
-
-		return word.lower()
+		return word
 
 	@classmethod
 	def pseudo_map_digits(cls, word):
@@ -477,13 +515,7 @@ class CollinsNormalisation(WordNormaliser):
 			See Michael Collins' NLP Coursera notes, chap.2
 			:rtype: str
 		"""
-		if bool(cls.EMAIL_REGEX.search(word.lower())):
-			# print '!email!', word
-			return '!email!'
-		elif bool(cls.URL_REGEX.search(word)):
-			#print '!url!', word
-			return '!url!'
-		elif bool(cls.RE_DIGITS.search(word)):  # contains digits
+		if bool(cls.RE_DIGITS.search(word)):  # contains digits
 			if word.isdigit():
 				if len(word) == 2:
 					return '!twoDigitNum!'
@@ -508,7 +540,7 @@ class CollinsNormalisation(WordNormaliser):
 	@classmethod
 	def low_freq_words(cls, word):
 		""" Map a word to a pseudo word.
-			Want to apply this only to lexicon words with low frequency.
+			Want to apply this only to lexicon words with low frequency or unseen words.
 			See Michael Collins' NLP Coursera notes, chap.2
 			:rtype: str
 		"""
@@ -590,6 +622,36 @@ class Ratnaparkhi96Features(SequenceFeaturesTemplate):
 		return features
 
 
+class OrthographicFeatures(SequenceFeaturesTemplate):
+	# TODO: add word class's from:
+	# 	Originally: Michael Collins (2002) Ranking algorithms for named-entity extraction: Boosting and the voted perceptron
+	#	Explained in: Burr Settles (2004) Biomedical Named Entity Recognition Using Conditional Random Fields and Rich Feature Sets
+
+	# "Words are also assigned a generalized “word class” similar to Collins (2002), which replaces
+	# capital letters with ‘A’, lowercase letters with ‘a’, digits with ‘0’, and all other characters
+	# with ‘_’. There is a similar “brief word class” feature which collapses consecutive identical
+	# characters into one. Thus the words “IL5” and “SH3” would both be given the features
+	# WC=AA0 and BWC=A0, while “F-actin” and “T-cells” would both be assigned WC=A_aaaaa and BWC=A_a."
+
+	@classmethod
+	def word_class(self, word):
+		wc = ''
+		for l in word:
+			if l in string.lowercase:
+				wc += 'a'
+			elif l in string.uppercase:
+				wc += 'A'
+			elif l in string.digits:
+				wc += '0'
+			else:
+				wc += '_'
+		return wc
+
+	@classmethod
+	def brief_word_class(self, word_class):
+		return re.sub(r'(.)\1+', r'\1', word_class)
+
+
 class Context(object):
 	"""
 	The main idea of this class is to reduce the number of times feature_templates.get() and zip(*sequence) are called.
@@ -623,6 +685,9 @@ class Context(object):
 		for i, _ in enumerate(self.sequence):
 			self.features.append([f for f in feature_templates.get(i+extra, (BEGIN+list(self.words)+END, BEGIN+list(self.labels)+END))])
 
+	def __len__(self):
+		return len(self.words)
+
 	def get_features(self, i, label):
 		return [intern(str(f+" &"+label)) for f in self.features[i]]  # merge the feature set with the label
 
@@ -643,35 +708,32 @@ class ForwardBackward(object):
 	def __init__(self, model):
 		self.model = model  # needs to implement interface: potential(state_from, state_to, context_index)
 
-	def p(self, state_from, state_to, seq, i):
-		context  = Context((seq, [''] * len(seq)))  # TODO: this works in forwards but not backwards + should guess_tags()
-		return self.model.potential(state_to, state_from, context, i)
+	def p(self, state_from, state_to, seq, i, forwards=True):
+		context  = Context((seq, [''] * len(seq)))  # TODO: this works in forwards but not backwards + should guess_tags()\
+		if forwards:
+			return self.model.potential(state_to, state_from, context, i)
+		else:
+			return self.model.potential_backward(state_to, state_from, context, i)
 
-	def forward_backward(self, unlabeled_sequence, states):
+	def forward_backward(self, context, states):
 		""" Run the forwards-backwards algorithm
 		:param context: Context object
 		:param states: list of all possible states/tags
 		:return:
 		"""
-		m = len(unlabeled_sequence)
+		def get_edge_prob(i):
+			edge = {}
+			if context.labels[i]:
+				edge = dict.fromkeys(states, 0.0)  # dangerous to have zeros in the pipe
+				edge[context.labels[i]] = 1.0
+			else:
+				for st in states:
+					edge[st] = self.model.probabilities(i, context)[st]
+			return edge
 
-		# Calculate start states
-
-		start = {}
-		tags = [''] * m
-		for st in states:
-			tags[0] = st
-			context = Context((unlabeled_sequence, tags))
-			start[st] = self.model.probabilities(0, context)[st]
-
-		# Calculate end states
-
-		end = {}
-		tags = [''] * m
-		for st in states:
-			tags[m-1] = st
-			context = Context((unlabeled_sequence, tags))
-			end[st] = self.model.probabilities(m-1, context)[st]
+		m = len(context.words) - 1
+		start = get_edge_prob(0)  # Calculate start states
+		end = get_edge_prob(m)  # Calculate end states
 
 		return self.fwd_bkw(context, states, start, end)
 
@@ -684,65 +746,79 @@ class ForwardBackward(object):
 		:param end: end state
 		:return: forward and backward probabilities + posteriors
 		"""
-
-		def show(matrix, name):
-			pd = pandas.DataFrame(matrix).transpose()
-			pd.columns = seq
-			print name, "\n", pd.to_string()
+		def force(tag):
+			dist = dict.fromkeys(states, 0.0)
+			dist[tag] = 1.0
+			return dist
 
 		seq = context.words
-		m = len(seq)
+		tags = context.labels
+		m = len(seq)-1
 
 		# Forward part of the algorithm
-		# the probability of ending up in any particular state given the first k observations in the sequence
+		# the probability of ending up in any particular state given the _first_ k observations in the sequence
 
 		fwd = []
 		f_prev = {}
 		for i, _ in enumerate(seq):
-			f_curr = {}
-			for st in states:
-				if i == 0:
-					# base case for the forward part
-					f_curr = start
-					break
-				else:
-					f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in states)
-			f_curr = normalize(f_curr)
+			if not tags[i]:
+				f_curr = {}
+				for st in states:
+					if i == 0:
+						# base case for the forward part
+						f_curr = start
+						break
+					else:
+						# f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in states)
+						f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in self.model.get_labels(seq[i-1]))  # speed up
+				f_curr = normalize(f_curr)
+			else:
+				f_curr = force(tags[i])  # if we are certain about a particular tag then force it  skip the DP monkey work.
 			# iterate (instead of recurs)
 			fwd.append(f_curr)
 			f_prev = f_curr
 
-		show(fwd, "Forward:")
+		# show(fwd, seq, "Forward:")
 
 		# Backward part of the algorithm
-		# the probability of observing the remaining observations given any starting point k
+		# the probability of observing the _remaining_ observations given any starting point k
+		# TODO Backwards pass seems to produce a flat prob. distribution :(
 
 		bkw = []
 		b_prev = {}
 		# for i, x_i_plus in enumerate(reversed(seq[1:] + [None])):
-		for i in range(m, 0, -1):
-			b_curr = {}
-			for st in states:
-				if i == m:
-					# base case for backward part
-					b_curr = end
-					break
-				else:
-					b_curr[st] = sum([self.p(st, l, seq, i) * b_prev[l] for l in states])  # TODO this is not working :(
-			b_curr = normalize(b_curr)
+		for i in range(m, -1, -1):
+			if not tags[i]:
+				b_curr = {}
+				for st in states:
+					if i == m:
+						# base case for backward part
+						b_curr = end
+						break
+					else:
+						# b_curr[st] = sum([self.p(st, l, seq, i) * b_prev[l] for l in states])
+						b_curr[st] = sum([self.p(st, l, seq, i, False) * b_prev[l] for l in self.model.get_labels(seq[i+1])])  # is seq[i] right..?
+				b_curr = normalize(b_curr)
+			else:
+				b_curr = force(tags[i])  # again, skip the monkey work if we already know the tag.
 			bkw.insert(0, b_curr)
 			b_prev = b_curr  # iterate
 
-		show(bkw, "Backwards:")
+		# show(bkw, seq, "Backwards:")
 
 		# merging the two parts
 		posterior = []
-		for i in range(m):
+		for i in range(m+1):
 			posterior.append(normalize({st: fwd[i][st] * bkw[i][st] for st in states}))
 
-		show(posterior, "Posteriors")
-		return fwd, bkw, posterior
-		#return posterior
+		# show(posterior, seq, "Posteriors")
+		# return fwd, bkw, posterior
+		return posterior
+
+def show(matrix, seq, name=''):
+	pd = pandas.DataFrame(matrix).transpose()
+	pd.columns = seq
+	print name, "\n", pd.to_string()
 
 
 class Viterbi(object):
@@ -774,7 +850,7 @@ class Viterbi(object):
 		for j in range(1, len(seq)):
 			V.append(dict.fromkeys(all_states, 0))
 			new_path = {}
-			x = seq[j]  # current word
+			# x = seq[j]  # current word
 			for s in all_states:
 				context = Context(list(izip_longest(seq, path[s], fillvalue='')))
 				# We only consider labels we have seen for this word (see: get_labels(word)) or all if unseen.

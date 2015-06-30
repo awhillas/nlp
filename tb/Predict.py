@@ -5,9 +5,6 @@
 	Using predominantly for bench marking
 """
 
-#from __future__ import print_function
-
-from textblob import TextBlob
 from lib.PerceptronTagger import PerceptronTagger
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader

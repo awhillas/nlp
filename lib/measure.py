@@ -4,7 +4,7 @@ from sortedcontainers import SortedDict
 import re
 import csv
 import StringIO
-from ascii_graph import Pyasciigraph
+# from ascii_graph import Pyasciigraph
 
 class Measure(object):
 	""" Class for scoring binary classification models
@@ -67,6 +67,7 @@ class Measure(object):
 
 	def __str__(self):
 		return unicode(self).encode('utf-8')
+
 
 class ConfusionMatrix(object):
 	"""
@@ -142,6 +143,7 @@ class ConfusionMatrix(object):
 
 		return word_count, word_error, sentence_errors
 
+
 class POSTaggerMeasure(object):
 	""" Class to measure the performance of a POS Tagger. """
 	def __init__(self, classes):
@@ -149,7 +151,15 @@ class POSTaggerMeasure(object):
 		self.sent_length_totals = {}
 		self.sent_correct = {}
 
-	def test(self, words, predicted, gold, verbose = False):
+	@classmethod
+	def cols(self):
+		return ['POS tag', 'POS Sent.']
+
+	def log(self):
+		return {'POS tag': "{:>4.2f}".format(self.matrix.precision() * 100),
+				'POS Sent.': "{:>4.2f}".format(float(sum(self.sent_correct.values())) / sum(self.sent_length_totals.values()) * 100)}
+
+	def test(self, words, predicted, gold, verbose = True):
 		error_count = 0
 		sentence_error = False
 		length = len(words)
@@ -171,13 +181,11 @@ class POSTaggerMeasure(object):
 			correct = len(words) - error_count
 			print "Correct:", correct, "/", len(words), ", rate:", "%.1f" % (float(correct) / len(words) * 100), "%"
 
-	def print_tally(self):
-		print "Tag:", "{:>4.2f}".format(self.matrix.precision() * 100), "%"
-		print "Sentence: ", "{:>4.2f}".format(float(sum(self.sent_correct.values())) / sum(self.sent_length_totals.values()) * 100), "%"
-		graph = Pyasciigraph()
-		histogram = [(i, a/b) for (i,a),b in zip(self.sent_correct.iteritems(), self.sent_length_totals.itervalues())]
-		for line in  graph.graph('% Correct by Sentence length', histogram):
-			print(line)
+	def totals(self):
+		print_heading("Post-Of-Speech (POS) Tagger")
+		totals = self.log()
+		print "Tag:", totals['POS tag'], "%"
+		print "Sentence: ", totals['POS Sent.'], "%"
 
 	@classmethod
 	def print_solution(cls, sentence, guess, gold):
@@ -187,3 +195,45 @@ class POSTaggerMeasure(object):
 		print row_format.format("words: ", *sentence)
 		print row_format.format("gold:  ", *gold)
 		print row_format.format("guess: ", *guess)
+
+
+class UASMeasure(object):
+	def __init__(self):
+		self.correct = 0
+		self.total = 0
+		self.sentences_correct = 0
+		self.sentences_total = 0
+
+	@classmethod
+	def cols(self):
+		return ['UAS', 'UAS Sent.']
+
+	def log(self):
+		return {'UAS': "{:>4.2f}".format(float(self.correct) / self.total * 100),
+			    'UAS Sent.': "{:>4.2f}".format(float(self.sentences_correct) / self.sentences_total * 100)}
+
+	def test(self, heads, gold, verbose=True):
+		self.sentences_total += 1
+		error = False
+		for i, h in enumerate(heads):
+			if h is None:
+				continue
+			self.total += 1
+			if h == gold[i]:
+				self.correct += 1
+			else:
+				error = True
+		if not error:
+			self.sentences_correct += 1
+
+	def totals(self):
+		scores = self.log()
+		print_heading("Unlabeled Attachment Score (UAS)")
+		print "UAS:", scores['UAS']
+		print "Sentence:", scores['UAS Sent.']
+
+def print_heading(text):
+	n = len(text)
+	print "\n", n * '='
+	print text
+	print n * '-'

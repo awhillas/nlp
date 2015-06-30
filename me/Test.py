@@ -13,7 +13,7 @@ class Test(MachineLearningModule):
 		self.input_module = 'me.Predict'
 		# Output logging
 		log_keys = ["Name", "Date", "Model", "Data", "Features", "Train Iter.", "Reg.", "Max Iter.", "Word %", "Sentence %", "Comment"]
-		self.logger = self.logger = CSVLogger(self.config('output') + "/POS-tagging.log.csv", log_keys)
+		self.logger = CSVLogger(self.config('output') + "/POS-tagging.log.csv", log_keys)
 
 	def run(self, tagger):
 		# TODO: move most of this inside the confusion matrix
