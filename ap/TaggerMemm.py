@@ -27,7 +27,8 @@ class TaggerMemm(MachineLearningModule):
 			self.tagger.train(learning, regularization=reg, maxiter=mxitr, optimise=False)
 			print "Generating Muti POS Tags"
 			word_count = 0; tag_count = 0
-			for sentence in testing:
+			for s in testing:
+				sentence, gold_tags = map(list, zip(*s))
 				word_count += len(sentence)
 				multi_tags = self.tagger.multi_tag(sentence, ambiguity)
 				tags = [max(all_tags.iterkeys(), key=(lambda key: all_tags[key])) for all_tags in multi_tags]
