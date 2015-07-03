@@ -32,23 +32,6 @@ class ParserMemmMulti(MachineLearningModule):
 			return self.working_dir() + ParserMemmMulti.BACKUP_FILENAME + '-ambiguity_%.2f' % ambiguity + '.pickle'
 
 		def train(pparser, tin_tags, sentences, nr_iter=3):
-			# ambiguity = self.log_me('Ambiguity', float(self.config('ambiguity')))
-			# tin_tags = restore(multi_tags_backup_filename(ambiguity))
-			# if not tin_tags:
-			# 	word_count = 0; tag_count = 0
-			# 	tin_tags = dict()
-			# 	print "Generating Muti POS Tags"
-			# 	for i, (words, gold_tags, gold_heads) in enumerate(sentences):
-			# 		if is_projective(gold_heads):  # filter non-projective trees
-			# 			word_count += len(words)
-			# 			multi_tags = tagger.multi_tag(words, ambiguity)
-			# 			tag_count += sum([len(tags) for tags in multi_tags])
-			# 			tags = [max(all_tags.iterkeys(), key=(lambda key: all_tags[key])) for all_tags in multi_tags]
-			# 			tin_tags["".join(words)] = (tags, multi_tags)
-			# 			print 'Tagged: {0} of {1}'.format(i+1, len(sentences))
-			# 	backup(tin_tags, multi_tags_backup_filename(ambiguity))
-			# 	print "Tags per word %.3f" % self.log_me('Tags / word', tag_count / word_count)
-
 			print "Training Parser"
 			for itn in range(nr_iter):
 				correct = 0; total = 0
@@ -84,6 +67,6 @@ class ParserMemmMulti(MachineLearningModule):
 
 	def load(self, path = None, filename_prefix = ''):
 		self.tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-		self.tagger.load(save_dir=self.working_dir())
+		self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % self.get('regularization'))
 		self.parser = AmbiguousParser(load=True, save_dir=self.working_dir())
 

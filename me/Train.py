@@ -14,20 +14,20 @@ class Train(MachineLearningModule):
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		training_data = data.tagged_sents(self.config('training_file'))
 		# cv_data = data.tagged_sents(self.config('cross_validation_file')) # TODO: Use cross-validation set to tune the regularization param.
-		reg = self.log_me('Reg.', float(self.config('regularization')))
-		mxitr = self.log_me('Max iter.', int(self.config('maxiter')))
+		reg = self.get('regularization')
+		mxitr = self.get('maxiter')
 
 		print "Training MaxEnt model..."
 
 		# Learn features
-		self.model.train(training_data, regularization=reg, maxiter=mxitr)
-		self.log_me("Features", len(self.model.weights))  # TODO: doesn't seem to make it ?
+		self.tagger.train(training_data, regularization=reg, maxiter=mxitr)
+		self.log("Features", "{:,}".format(len(self.tagger.weights)))
 
 		return True
 
-	def load(self, path = None, filename_prefix = ''):
-		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
-		self.model.load(path, filename_prefix)
+	def save(self, path = None, filename_prefix=None):
+		return self.tagger.save(self.working_dir(), filename_prefix='-reg_%.2f' % float(self.get('regularization')))
 
-	def save(self, path = None, filename_prefix = ''):
-		self.model.save(path, filename_prefix)
+	def load(self, path = None, filename_prefix=None):
+		self.tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+		return self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % float(self.get('regularization')))

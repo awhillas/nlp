@@ -35,8 +35,11 @@ class Experiment(object):
 		self.name = args.name
 		self.comment = args.comment
 
+		self.params = {}
+		self.params.update(vars(args))
+
 		# Dict. we can throw output into
-		self.log = {
+		self._log = {
 			"Data": self._data_set_id,
 			"Name": args.name,
 			"Comment": args.comment,
@@ -73,7 +76,7 @@ class Experiment(object):
 				break
 
 	def dir(self, name, check=True):
-		dir = path.join(self.config(name), self._data_set_id, self.name)
+		dir = path.join(self.get(name), self._data_set_id, self.name)
 		if check:
 			self.check_path(dir)
 		return dir
@@ -82,12 +85,18 @@ class Experiment(object):
 		with open(self.dir('output')+'/'+file_name, 'a') as f:
 			f.write(text)
 
-	def config(self, variable):
-		""" Accessor for the config
-		:param variable: section in the ini file
-		:return: str
-		"""
-		return self._config.get(self._data_set_id, variable)
+	def get(self, var):
+		if var in self.params:
+			out = self.params[var]
+			self._log.update({var: out})
+			print var, out
+		else:
+			out = self._config.get(self._data_set_id, var)
+		return out
+
+	def log(self, what, value):
+		if not self.no_log:
+			self._log.update({what: value})
 
 	@classmethod
 	def get_date(cls):
@@ -144,10 +153,13 @@ class MachineLearningModule:  # Interface.
 		"""
 		full_path = self.get_save_file_name(path, filename_prefix)
 		tmp_dict = self.restore(full_path)
-		tmp_dict['_experiment'] = self._experiment
-		self.__dict__.update(tmp_dict)
-		print "Loaded", full_path
-		return full_path
+		if tmp_dict:
+			tmp_dict['_experiment'] = self._experiment
+			self.__dict__.update(tmp_dict)
+			print "Loaded", full_path
+			return full_path
+		else:
+			return False
 
 	@classmethod
 	def backup(cls, data, path):
@@ -157,13 +169,13 @@ class MachineLearningModule:  # Interface.
 			print "Saved", path
 
 	@classmethod
-	def restore(cls, path):
+	def restore(cls, save_dir):
 		""" Load the given file and return it. """
-		if not path.exists(path):
-			print "Could not load", path
+		if not path.exists(save_dir):
+			print "Could not load", save_dir
 			return False
 		else:
-			with open(path, 'rb') as f:
+			with open(save_dir, 'rb') as f:
 				return pickle.load(f)
 
 	def delete(self, path = None, filename_prefix = ''):
@@ -185,7 +197,7 @@ class MachineLearningModule:  # Interface.
 		return self._experiment.dir(name)
 
 	def get_input_file_name(self):
-		return self.config("training_file")
+		return self.get("training_file")
 
 	def pickle_file(self):
 		return self.working_dir() + '/' + self.get_save_file_name()
@@ -201,36 +213,23 @@ class MachineLearningModule:  # Interface.
 		:param variable: section in the ini file
 		:return: str
 		"""
-		return self._experiment.config(variable)
+		print "MachineLearningModule.get() DEPRECIATED"
+		return self._experiment.get(variable)
+
+	def get(self, variable):
+		""" Accessor for the config
+		:param variable: section in the ini file
+		:return: str
+		"""
+		return self._experiment.get(variable)
+
 
 	def out(self, file_name, text):
 		self._experiment.out(file_name, text)
 
-	def log(self):
-		self._experiment.log
-
-	def log_me(self, key, value):
-		if not self._experiment.no_log:
-			self._experiment.log.update({key: value})
+	def log(self, key, value):
+		self._experiment.log(key, value)
 		return value
 
 	def cols(self):
 		return self._experiment.log.keys()
-
-# Fix for picking instance methods
-
-# def _pickle_method(method):
-# 	func_name = method.im_func.__name__
-# 	obj = method.im_self
-# 	cls = method.im_class
-# 	return _unpickle_method, (func_name, obj, cls)
-#
-# def _unpickle_method(func_name, obj, cls):
-# 	try:
-# 		func = cls.__dict__[func_name]
-# 	except KeyError:
-# 		pass
-# 	return func.__get__(obj, cls)
-#
-# copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
-

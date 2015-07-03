@@ -2,7 +2,7 @@
 Utilities for POS tagging
 """
 
-import time
+import time, datetime
 
 class color:
 	""" http://stackoverflow.com/questions/8924173/how-do-i-print-bold-text-in-python
@@ -42,6 +42,8 @@ def tag_all(sequence_list, tagger, normaliser=None, output_file=None):
 	:return:
 	"""
 	out = []
+	start = time.time()
+	total_sents = len(sequence_list)
 	for i, unlabeled_sequence in enumerate(sequence_list, start=1):
 		print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/len(sequence_list) * 100)
 		display = [unlabeled_sequence]
@@ -59,7 +61,8 @@ def tag_all(sequence_list, tagger, normaliser=None, output_file=None):
 		t1 = time.time()
 
 		print matrix_to_string(display)
-		print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(unlabeled_sequence)), "\n"
+		print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(unlabeled_sequence))
+		print "Estimated time:", datetime.timedelta(seconds= (t1 - start) / i * total_sents), "\n"
 		out += [zip(unlabeled_sequence, tags)]
 
 	return out

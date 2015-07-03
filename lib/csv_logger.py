@@ -17,9 +17,11 @@ class CSVLogger(object):
 			self.lines = file_length(self.file_path)
 
 	def add(self, **kwargs):
-		""" Add a row to the end of the file.\
+		""" Add a row to the end of the file.
 			:return: The log Id/line-number just added.
 		"""
+		# TODO: read the header row and order by the columns there.
+		# TODO: Add new cols if we're adding cols.
 		st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
 		if os.path.exists(self.file_path):
 			with open(self.file_path, 'a') as f:
