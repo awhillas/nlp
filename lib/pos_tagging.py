@@ -62,7 +62,7 @@ def tag_all(sequence_list, tagger, normaliser=None, output_file=None):
 
 		print matrix_to_string(display)
 		print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(unlabeled_sequence))
-		print "Estimated time:", datetime.timedelta(seconds= (t1 - start) / i * total_sents), "\n"
+		print "Estimated time:", datetime.timedelta(seconds=(t1 - start) / i * (total_sents - i)), "\n"
 		out += [zip(unlabeled_sequence, tags)]
 
 	return out

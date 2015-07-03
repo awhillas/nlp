@@ -25,7 +25,7 @@ class CSVLogger(object):
 		st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
 		if os.path.exists(self.file_path):
 			with open(self.file_path, 'a') as f:
-				self.lines -= 1
+				self.lines += 1
 				output = [self.lines, st]  # Add standard data
 				for col in self.columns:
 					if col in kwargs:
@@ -40,7 +40,7 @@ class CSVLogger(object):
 
 def file_length(filepath):
 	with open(filepath) as f:
-		count = 1;
+		count = 0;
 		for i, l in enumerate(f):
 			count += 1
 	return count

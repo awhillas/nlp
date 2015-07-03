@@ -12,7 +12,7 @@ class Test(MachineLearningModule):
 		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Predict'
 
-	def run(self, tagger):
+	def run(self, previous):
 		# TODO: move most of this inside the confusion matrix
 		def print_sol(sentence, guess, gold):
 			row_format = '{0}'
@@ -22,11 +22,11 @@ class Test(MachineLearningModule):
 			print row_format.format("gold:  ", *gold)
 			print row_format.format("guess: ", *guess)
 
-		predicted = tagger.labeled_sequences
+		predicted = previous.labeled_sequences
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		gold_labeled_sequences = data.tagged_sents(self.config('cv_file'))
 
-		all_labels = tagger.model.tag_count.keys()
+		all_labels = previous.tagger.tag_count.keys()
 
 		matrix = ConfusionMatrix(all_labels)
 		sents = 0
@@ -49,11 +49,12 @@ class Test(MachineLearningModule):
 			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
 
 		print "Tag:", self.log("Word %", "{:>4.2f}".format(matrix.precision() * 100)), "%"
-		print "Sentence: ", self.log("% Sent.", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100)), "%"
+		print "Sentence: ", self.log("Sent. %", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100)), "%"
 
 		if not self._experiment.no_log:
-			logger = CSVLogger(self.config('output') + "/pos-tagging.log.csv", self._experiment.log.keys())
-			run_id = logger.add(**self._experiment.log.items())
+			columns = ['Name','Data','regularization','maxiter','Features','Word %','Sent. %','Total Time','Comment']
+			logger = CSVLogger(self.dir('output') + "/pos-tagging.log.csv", columns)
+			run_id = logger.add(**self._experiment._log)
 			self.out("{0}_confusion_matrix,reg-{0}.csv".format(run_id, self.get('regularization')), matrix.csv())
 
 		return True

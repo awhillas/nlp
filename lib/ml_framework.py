@@ -137,11 +137,11 @@ class MachineLearningModule:  # Interface.
 		raise NotImplementedError( "Should have implemented this" )
 		return False  # return True if all went well
 
-	def save(self, path = None, filename_prefix = ''):
+	def save(self, data, path = None):
 		""" Save the output.
 			Ideally so that a run() can be skipped
 		"""
-		full_path = self.get_save_file_name(path, filename_prefix)
+		full_path = self.get_save_file_name(path)
 		copy = dict(self.__dict__)
 		copy.pop('_experiment')  # don't save
 		self.backup(copy, full_path)
@@ -151,7 +151,7 @@ class MachineLearningModule:  # Interface.
 		""" Load the saved output
 			Instead of of run()?
 		"""
-		full_path = self.get_save_file_name(path, filename_prefix)
+		full_path = self.get_save_file_name(path)
 		tmp_dict = self.restore(full_path)
 		if tmp_dict:
 			tmp_dict['_experiment'] = self._experiment
@@ -186,12 +186,12 @@ class MachineLearningModule:  # Interface.
 			print "Removing", full_path
 			os.remove(full_path)
 
-	def get_save_file_name(self, path = None, filename_prefix = ''):
+	def get_save_file_name(self, path = None):
 		""" Return a unique filename.
 		"""
 		if path is None:
 			path = self.dir('working')
-		return path + '/' + self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
+		return path + '/' + self.__class__.__name__ + "_data.pickle"
 
 	def dir(self, name):
 		return self._experiment.dir(name)
