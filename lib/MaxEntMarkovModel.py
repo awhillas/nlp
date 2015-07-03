@@ -211,12 +211,14 @@ class MaxEntMarkovModel(SequenceModel):
 			return False
 
 	def get_labels(self, word):
+		""" Use tag dict. of all seen words. """
 		if word in self.word_tag_count:
 			return self.word_tag_count[word].keys()
 		else:
 			return self.tag_count.keys()
 
 	def guess_tag(self, word):
+		""" Use the more selective tagdict of seen tags. """
 		guess = self.tagdict.get(word)
 		return [guess] if guess else self.tag_count.keys()
 
@@ -230,7 +232,7 @@ class MaxEntMarkovModel(SequenceModel):
 	def get_classes(self):
 		return self.tag_count.keys()
 
-	def train(self, data, regularization=0.33, maxiter=1):
+	def train(self, data, regularization=0.33, maxiter=1, optimise=True):
 		"""
 		:param data: List of sentences, Sentences are lists if (word, label) sequences.
 		:return: true on success, false otherwise
@@ -245,7 +247,10 @@ class MaxEntMarkovModel(SequenceModel):
 					self.learnt_features[f] += 1
 					self.weights.setdefault(f, 1.0)  # initial default to 1.0
 		self._make_tagdict()
-		return self._learn_parameters(data, regularization, maxiter)
+		if optimise:
+			return self._learn_parameters(data, regularization, maxiter)
+		else:
+			return False
 
 	@classmethod
 	def _merge_weight_values(cls, features, values):
@@ -429,15 +434,14 @@ class MaxEntMarkovModel(SequenceModel):
 
 	def _make_tagdict(self):
 		"""Make a tag dictionary for single-tag words."""
-		# freq_thresh = 10  # doesn't scale to different data set sizes :(
+		freq_thresh = 10  # doesn't scale to different data set sizes :(
 		ambiguity_thresh = 0.97
 		for word, tag_freqs in self.word_tag_count.items():
 			tag, mode = max(tag_freqs.items(), key=lambda item: item[1])
 			n = sum(tag_freqs.values())
 			# Don't add rare words to the tag dictionary
 			# Only add quite unambiguous words
-			# if n >= freq_thresh and (float(mode) / n) >= ambiguity_thresh:
-			if (float(mode) / n) >= ambiguity_thresh:
+			if n >= freq_thresh and (float(mode) / n) >= ambiguity_thresh:
 				self.tagdict[word] = tag
 
 
@@ -747,8 +751,8 @@ class ForwardBackward(object):
 		:return: forward and backward probabilities + posteriors
 		"""
 		def force(tag):
-			dist = dict.fromkeys(states, 0.0)
-			dist[tag] = 1.0
+			dist = dict.fromkeys(states, 0.01/(len(states)-1))
+			dist[tag] = 0.99
 			return dist
 
 		seq = context.words
@@ -770,7 +774,8 @@ class ForwardBackward(object):
 						break
 					else:
 						# f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in states)
-						f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in self.model.get_labels(seq[i-1]))  # speed up
+						# f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in self.model.get_labels(seq[i-1]))  # speed up
+						f_curr[st] = sum(f_prev[k] * self.p(k, st, seq, i) for k in self.model.guess_tag(seq[i-1]))  # speed up
 				f_curr = normalize(f_curr)
 			else:
 				f_curr = force(tags[i])  # if we are certain about a particular tag then force it  skip the DP monkey work.
@@ -797,7 +802,8 @@ class ForwardBackward(object):
 						break
 					else:
 						# b_curr[st] = sum([self.p(st, l, seq, i) * b_prev[l] for l in states])
-						b_curr[st] = sum([self.p(st, l, seq, i, False) * b_prev[l] for l in self.model.get_labels(seq[i+1])])  # is seq[i] right..?
+						# b_curr[st] = sum([self.p(st, l, seq, i, False) * b_prev[l] for l in self.model.get_labels(seq[i+1])])  # is seq[i] right..?
+						b_curr[st] = sum([self.p(st, l, seq, i, False) * b_prev[l] for l in self.model.guess_tag(seq[i+1])])  # is seq[i] right..?
 				b_curr = normalize(b_curr)
 			else:
 				b_curr = force(tags[i])  # again, skip the monkey work if we already know the tag.
@@ -854,8 +860,8 @@ class Viterbi(object):
 			for s in all_states:
 				context = Context(list(izip_longest(seq, path[s], fillvalue='')))
 				# We only consider labels we have seen for this word (see: get_labels(word)) or all if unseen.
-				(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.get_labels(seq[j-1]) )
-				#(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.guess_tag(seq[j-1]) )
+				# (prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.get_labels(seq[j-1]) )
+				(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.guess_tag(seq[j-1]) )
 				V[j][s] = prob
 				new_path[s] = path[state] + [s]
 			# Don't need to remember the old paths

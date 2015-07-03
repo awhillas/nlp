@@ -26,6 +26,8 @@ if __name__ == "__main__":
 						help='Do not load saved modules from file.')
 	parser.add_argument('-ns', '--no-save', default=False, action='store_const', const=True,\
 						help='Do not save modules to disk after a run.')
+	parser.add_argument('-nl', '--no-log', default=False, action='store_const', const=True,\
+						help='Do not log the results of the experiment.')
 
 	args = parser.parse_args()
 

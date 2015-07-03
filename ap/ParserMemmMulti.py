@@ -29,29 +29,33 @@ class ParserMemmMulti(MachineLearningModule):
 					return pickle.load(f)
 
 		def multi_tags_backup_filename(ambiguity):
-			return self.working_dir() + TrainParserMulti.BACKUP_FILENAME + '-ambiguity_%.2f' % ambiguity + '.pickle'
+			return self.working_dir() + ParserMemmMulti.BACKUP_FILENAME + '-ambiguity_%.2f' % ambiguity + '.pickle'
 
-		def train(pparser, tagger, sentences, nr_iter=3):
-			ambiguity = self.log_me('Ambiguity', float(self.config('ambiguity')))
-			tin_tags = restore(multi_tags_backup_filename(ambiguity))
-			if not tin_tags:
-				tin_tags = dict()
-				print "Generating Muti POS Tags"
-				for i, (words, gold_tags, gold_heads) in enumerate(sentences):
-					if is_projective(gold_heads) and len(words) > 1:  # filter non-projective trees
-						multi_tags = tagger.multi_tag(words, ambiguity)
-						tags = [max(all_tags.iterkeys(), key=(lambda key: all_tags[key])) for all_tags in multi_tags]
-						tin_tags["".join(words)] = (tags, multi_tags)
-						print 'Tagged: {0} of {1}'.format(i+1, len(sentences)),
-				backup(tin_tags, multi_tags_backup_filename(ambiguity))
+		def train(pparser, tin_tags, sentences, nr_iter=3):
+			# ambiguity = self.log_me('Ambiguity', float(self.config('ambiguity')))
+			# tin_tags = restore(multi_tags_backup_filename(ambiguity))
+			# if not tin_tags:
+			# 	word_count = 0; tag_count = 0
+			# 	tin_tags = dict()
+			# 	print "Generating Muti POS Tags"
+			# 	for i, (words, gold_tags, gold_heads) in enumerate(sentences):
+			# 		if is_projective(gold_heads):  # filter non-projective trees
+			# 			word_count += len(words)
+			# 			multi_tags = tagger.multi_tag(words, ambiguity)
+			# 			tag_count += sum([len(tags) for tags in multi_tags])
+			# 			tags = [max(all_tags.iterkeys(), key=(lambda key: all_tags[key])) for all_tags in multi_tags]
+			# 			tin_tags["".join(words)] = (tags, multi_tags)
+			# 			print 'Tagged: {0} of {1}'.format(i+1, len(sentences))
+			# 	backup(tin_tags, multi_tags_backup_filename(ambiguity))
+			# 	print "Tags per word %.3f" % self.log_me('Tags / word', tag_count / word_count)
 
 			print "Training Parser"
 			for itn in range(nr_iter):
 				correct = 0; total = 0
 				random.shuffle(sentences)
 				for i, (words, gold_tags, gold_heads) in enumerate(sentences):
-					if is_projective(gold_heads) and len(words) > 1:  # filter non-projective trees
-						tags, multi_tags = tin_tags["".join(words)]
+					if is_projective(gold_heads):  # filter non-projective trees
+						tags, multi_tags = tin_tags["".join(words)]  # i.e. tin is not gold
 						correct += pparser.train_one(words, tags, gold_heads, multi_tags)
 						total += len(words)
 				if total > 0:
@@ -67,9 +71,10 @@ class ParserMemmMulti(MachineLearningModule):
 		print "Start Parser training..."
 
 		self.tagger = previous.tagger
+		self.tagged = previous.tagged
 		self.parser = AmbiguousParser(load=False, save_dir=self.working_dir())
 
-		train(self.parser, self.tagger, parsed_sentences, 15)
+		train(self.parser, self.tagged, parsed_sentences, 15)
 
 		return True
 

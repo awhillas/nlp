@@ -31,6 +31,7 @@ class Experiment(object):
 
 		self.no_cache = args.no_cache
 		self.no_save = args.no_save
+		self.no_log = args.no_log
 		self.name = args.name
 		self.comment = args.comment
 
@@ -209,7 +210,8 @@ class MachineLearningModule:  # Interface.
 		self._experiment.log
 
 	def log_me(self, key, value):
-		self._experiment.log.update({key: value})
+		if not self._experiment.no_log:
+			self._experiment.log.update({key: value})
 		return value
 
 	def cols(self):

@@ -54,7 +54,7 @@ class Test(MachineLearningModule):
 		print "Tag:", "{:>4.2f}".format(matrix.precision() * 100), "%"
 		print "Sentence: ", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
 
-		if not self._experiment.no_save:
+		if not self._experiment.no_log:
 			itr = int(self.config('iterations'))
 			reg = float(self.config('regularization'))
 			mxitr = int(self.config('maxiter'))

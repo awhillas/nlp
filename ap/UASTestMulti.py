@@ -23,7 +23,7 @@ class UASTestMulti(MachineLearningModule):
 
 		for i, sentence in enumerate(parsed_sentences):
 			words, gold_tags, gold_heads = dep_tree_to_list(sentence)
-			if is_projective(gold_heads) and len(words) > 1:  # filter non-projective trees
+			if is_projective(gold_heads):  # filter non-projective trees
 				print 'Testing', i, 'of', len(parsed_sentences)
 				# Do the business
 				tags = tagger.tag(words)
@@ -37,10 +37,11 @@ class UASTestMulti(MachineLearningModule):
 		uas.totals()
 		print "\n"
 
-		data = pos.log()
-		data.update(uas.log())
-		data.update(self._experiment.log)
-		logger.add(**data)
+		if not self._experiment.no_log:
+			data = pos.log()
+			data.update(uas.log())
+			data.update(self._experiment.log)
+			logger.add(**data)
 
 		return False  # don't save
 
