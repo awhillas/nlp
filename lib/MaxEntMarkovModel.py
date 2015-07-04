@@ -842,6 +842,11 @@ class Viterbi(object):
 			model.get_labels(word)
 		:return:
 		"""
+		def force(tag):
+			dist = dict.fromkeys(states, 0.01/(len(states)-1))
+			dist[tag] = 0.99
+			return dist
+
 		V = [{}]  # len(seq) x len(states) dynamic programing table
 		path = {}  # back pointers
 
@@ -851,19 +856,19 @@ class Viterbi(object):
 			V[0][s] = start_p[s]
 			path[s] = [s]
 
+		guesses = model.guess_tags(seq)
+
 		# Run Viterbi for j > 0
 
 		for j in range(1, len(seq)):
 			V.append(dict.fromkeys(all_states, 0))
 			new_path = {}
-			# x = seq[j]  # current word
 			for s in all_states:
 				context = Context(list(izip_longest(seq, path[s], fillvalue='')))
-				# We only consider labels we have seen for this word (see: get_labels(word)) or all if unseen.
-				# (prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.get_labels(seq[j-1]) )
-				(prob, state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.guess_tag(seq[j-1]) )
+				# We only consider labels we have seen for this word (see: guess_tag(word)) or all if unseen.
+				(prob, prev_state) = max( (V[j - 1][s0] * model.potential(s, s0, context, j), s0) for s0 in model.guess_tag(seq[j-1]) )
 				V[j][s] = prob
-				new_path[s] = path[state] + [s]
+				new_path[s] = path[prev_state] + [s]
 			# Don't need to remember the old paths
 			path = new_path
 
@@ -873,5 +878,5 @@ class Viterbi(object):
 		if len(seq) != 1:
 			n = j
 		#print_dptable(V, seq)
-		(prob, state) = max((V[n][y], y) for y in all_states)
-		return prob, path[state]
+		(prob, prev_state) = max((V[n][y], y) for y in all_states)
+		return prob, path[prev_state]

@@ -3,6 +3,9 @@ Utilities for POS tagging
 """
 
 import time, datetime
+from lib.filelock import FileLock
+from os import path
+import cPickle as pickle
 
 class color:
 	""" http://stackoverflow.com/questions/8924173/how-do-i-print-bold-text-in-python
@@ -66,3 +69,70 @@ def tag_all(sequence_list, tagger, normaliser=None, output_file=None):
 		out += [zip(unlabeled_sequence, tags)]
 
 	return out
+
+def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', block_size=10, output_pickle='shared.pickle'):
+	""" Uses file locking to shared the tagging process amongst multiple machines that share a common file system.
+	"""
+	out = {}
+	total_sents = len(sequence_list)
+	counter_file = working_path+'/_tagger_position_counter.txt'  # share where we're up to in the sequence_list
+	start = 0
+	while start != -1:
+		with FileLock(counter_file):  # lock semaphore
+			if path.exists(counter_file):
+				with open(counter_file, 'r') as f:
+					start = int(f.readline())
+			else:
+				with open(counter_file, 'w') as f:
+					f.write(str(start))
+
+			if start == -1:
+				break
+
+			if start + block_size <= total_sents:  # process another block
+				new_start = stop = start + block_size
+			elif start + block_size > total_sents:  # last block
+				new_start = -1
+				stop = total_sents
+
+			with open(counter_file, 'w') as f:
+				f.write(str(new_start))
+
+		#for i, unlabeled_sequence in enumerate(sequence_list, start=1):
+		for i in xrange(start, stop):
+			print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/len(sequence_list) * 100)
+			seq = sequence_list[i]
+			display = [seq]
+
+			t0 = time.time()
+
+			if normaliser is not None:
+				normalised_seq = normaliser.sentence(seq)
+				display += [normalised_seq]
+				tags = tagger(normalised_seq)
+			else:
+				tags = tagger(seq)
+
+			display += [tags]
+			t1 = time.time()
+
+			print matrix_to_string(display)
+			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(seq))
+			out["".join(seq)] = tags
+
+	# finished so write the output to a common pickled dict
+	return update_shared_dict(out, working_path + output_pickle)
+
+
+def update_shared_dict(data, filepath):
+	shared_data = {}
+	with FileLock(filepath):  # Lock semaphore
+
+		if path.exists(filepath):
+			shared_data.update(pickle.load(open(filepath)))
+
+		shared_data.update(data)
+
+		pickle.dump(shared_data, open(filepath, 'wb'), -1)
+
+	return True
