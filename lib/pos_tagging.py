@@ -80,31 +80,35 @@ def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', bloc
 	out = {}
 	total_sents = len(sequence_list)
 	counter_file = working_path+'/_tagger_position_counter.txt'  # share where we're up to in the sequence_list
+	log_file = working_path + output_pickle + '.log'
 	start = 0
 	while start != -1:
 		with FileLock(counter_file):  # lock semaphore
 			if path.exists(counter_file):
 				with open(counter_file, 'r') as f:
 					start = int(f.readline())
-			else:
-				with open(counter_file, 'w') as f:
-					f.write(str(start))
+			# else:
+			# 	with open(counter_file, 'w') as f:
+			# 		f.write(str(start))
 
 			if start == -1:
 				break
 
-			if start + block_size <= total_sents:  # process another block
+			if start + block_size < total_sents:  # process another block
 				new_start = stop = start + block_size
-			elif start + block_size > total_sents:  # last block
+			elif start + block_size >= total_sents:  # last block
 				new_start = -1
 				stop = total_sents
 
 			with open(counter_file, 'w') as f:
 				f.write(str(new_start))
 
-		#for i, unlabeled_sequence in enumerate(sequence_list, start=1):
+		with FileLock(log_file):
+			with open(log_file, 'a') as f:
+				f.write('{0} sentences, doing {1} to {2}\n'.format(total_sents, start, stop))		
+
 		for i in xrange(start, stop):
-			print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/len(sequence_list) * 100)
+			print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/total_sents * 100)
 			seq = sequence_list[i]
 			display = [seq]
 

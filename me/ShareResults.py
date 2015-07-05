@@ -10,13 +10,12 @@ class ShareResults(MachineLearningModule):
 	""" Load the results of the Shared tagging task to pass on to  the Test module
 	"""
 	def run(self, previous):
-		self.tagger = previous.tagger
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
 		original = data.sents(self.get('cv_file'))
 
 		self.load(self.dir('working'))
 
-		assert len(original) == len(self.labeled_sequences)
+		assert len(original) == len(self.labeled_sequences.keys())
 
 		return True  # Don't save
 
