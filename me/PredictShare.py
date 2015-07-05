@@ -21,7 +21,7 @@ class PredictShare(MachineLearningModule):
 			normaliser=self.tagger.normaliser,
 			working_path=self.dir('working'),
 			block_size=10,
-			output_pickle='/memm_tagged_sentences.pickle'
+			output_pickle='/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization')
 		)
 		self.log("Total Time", str(datetime.timedelta(seconds= (time.time() - start))))
 

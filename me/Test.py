@@ -13,7 +13,6 @@ class Test(MachineLearningModule):
 		self.input_module = 'me.Predict'
 
 	def run(self, previous):
-		# TODO: move most of this inside the confusion matrix
 		def print_sol(sentence, guess, gold):
 			row_format = '{0}'
 			for k, w in enumerate(words):

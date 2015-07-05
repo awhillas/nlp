@@ -7,6 +7,7 @@ from lib.filelock import FileLock
 from os import path
 import cPickle as pickle
 
+
 class color:
 	""" http://stackoverflow.com/questions/8924173/how-do-i-print-bold-text-in-python
 		usage: print color.BOLD + 'Hello World !' + color.END
@@ -22,6 +23,7 @@ class color:
 	UNDERLINE = '\033[4m'
 	END = '\033[0m'
 
+
 def matrix_to_string(matrix):
 	# Figure out the max width of each column
 	widths = [0] * len(matrix[0])
@@ -35,6 +37,7 @@ def matrix_to_string(matrix):
 	for row in matrix:
 		output += [row_format.format(*row)]
 	return "\n".join(output)
+
 
 def tag_all(sequence_list, tagger, normaliser=None, output_file=None):
 	""" Loops though a list of sequences and applies the given function to each to get the corresponding tags.
@@ -69,6 +72,7 @@ def tag_all(sequence_list, tagger, normaliser=None, output_file=None):
 		out += [zip(unlabeled_sequence, tags)]
 
 	return out
+
 
 def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', block_size=10, output_pickle='shared.pickle'):
 	""" Uses file locking to shared the tagging process amongst multiple machines that share a common file system.
@@ -120,8 +124,7 @@ def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', bloc
 			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(seq))
 			out["".join(seq)] = tags
 
-	# finished so write the output to a common pickled dict
-	return update_shared_dict(out, working_path + output_pickle)
+		update_shared_dict(out, working_path + output_pickle)  # finished so write the output to a common pickled dict
 
 
 def update_shared_dict(data, filepath):
