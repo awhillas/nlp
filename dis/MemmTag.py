@@ -8,38 +8,25 @@ def setup(): # executed on each node before jobs are scheduled
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	# stick imports into global scope, create global shared data
 	global Experiment, MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation, current_model_file
-	current_model_file = None
+	current_reg = None
 	return 0
 
-def compute(model_file, sentence):
-	global current_model_file
+def compute(working_dir, reg, sentence):
+	global current_reg
 
-	if model_file != current_model_file:
-		import cPickle as pickle
+	if reg != current_reg:
 		tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-		tagger.__dict__.update(pickle.load(open(model_file)))
-		current_model_file = model_file
+		tagger.load(working_dir, '-reg_%.2f' % reg)
+		current_reg = reg
 	return tagger.tag(sentence)
 
 
 class MemmTag(MachineLearningModule):
 
 	def run(self, previous):
-		http_server = None
-		labeled_sequences = {}
-		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
-		model_file = MaxEntMarkovModel.save_file(self.dir('working'), '-reg_%.2f' % self.get('regularization'))
 
-		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
-		http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
-		jobs = []
-		unlabeled = data.sents(self.get('cv_file'))
-		for i, sentence in enumerate(unlabeled):
-			job = cluster.submit(model_file, sentence)
-			job.id = i
-			jobs.append(job)
-
-		if http_server is not None:
+		def save_data(jobs):
+			labeled_sequences = {}
 			for job in jobs:
 				job()
 				if job.status != dispy.DispyJob.Finished:
@@ -48,12 +35,32 @@ class MemmTag(MachineLearningModule):
 					print('%s: %s' % (job.id, job.result))
 					# print('%s executed job %s at %s with %s\n%s' % (host, job.id, job.start_time, n, job.result))
 					labeled_sequences["".join(unlabeled[i])] = job.result
-			cluster.stats()
-		else:
+			return labeled_sequences
+
+
+		http_server = None
+		reg = self.get('regularization')
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+
+		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
+		http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
+		jobs = []
+		unlabeled = data.sents(self.get('cv_file'))
+		for i, sentence in enumerate(unlabeled):
+			job = cluster.submit(self.dir('working'), reg, sentence)
+			job.id = i
+			jobs.append(job)
+
+		if http_server is not None:
 			cluster.wait() # wait for all jobs to finish
 			http_server.shutdown() # this waits until browser gets all updates
+			cluster.stats()
 			cluster.close()
 
+		tags = save_data(jobs)
+		print "tags", tags
+		print "length", len(tags)
+		print "saving to", self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg
 
-		self.backup(labeled_sequences, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
+		self.backup(tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg)
 		return False
