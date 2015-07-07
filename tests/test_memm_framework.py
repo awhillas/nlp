@@ -177,3 +177,25 @@ def test_merge_features():
 	assert out['a'] == 1
 	assert out['b'] == 2
 	assert out['c'] == 3
+
+@pytest.mark.parametrize("input,expected", [
+	('ABC', 'AAA'),
+	('A.', 'A_'),
+	('Alexander', 'Aaaaaaaaa'),
+	('can', 'aaa'),
+	('AbC', 'AaA'),
+	('THX-123', 'AAA_000'),
+])
+def test_word_class(input, expected):
+	assert OrthographicFeatures.word_class(input) == expected
+
+@pytest.mark.parametrize("input,expected", [
+	('ABC', 'A'),
+	('A.', 'A_'),
+	('Alexander', 'Aa'),
+	('can', 'a'),
+	('AbC', 'AaA'),
+	('THX-123', 'A_0'),
+])
+def test_brief_word_class(input, expected):
+	assert OrthographicFeatures.brief_word_class(OrthographicFeatures.word_class(input)) == expected

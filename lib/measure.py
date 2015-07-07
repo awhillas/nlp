@@ -4,8 +4,9 @@ from sortedcontainers import SortedDict
 import re
 import csv
 import StringIO
+# from ascii_graph import Pyasciigraph
 
-class Measure:
+class Measure(object):
 	""" Class for scoring binary classification models
 	"""
 	def __init__(self):
@@ -67,7 +68,8 @@ class Measure:
 	def __str__(self):
 		return unicode(self).encode('utf-8')
 
-class ConfusionMatrix:
+
+class ConfusionMatrix(object):
 	"""
 	A specific table layout that allows visualization of the performance of an algorithm.
 	Each column of the matrix represents the instances in a predicted class, while each row represents the instances in
@@ -142,3 +144,96 @@ class ConfusionMatrix:
 		return word_count, word_error, sentence_errors
 
 
+class POSTaggerMeasure(object):
+	""" Class to measure the performance of a POS Tagger. """
+	def __init__(self, classes):
+		self.matrix = ConfusionMatrix(classes)
+		self.sent_length_totals = {}
+		self.sent_correct = {}
+
+	@classmethod
+	def cols(self):
+		return ['POS tag', 'POS Sent.']
+
+	def log(self):
+		return {'POS tag': "{:>4.2f}".format(self.matrix.precision() * 100),
+				'POS Sent.': "{:>4.2f}".format(float(sum(self.sent_correct.values())) / sum(self.sent_length_totals.values()) * 100)}
+
+	def test(self, words, predicted, gold, verbose = True):
+		error_count = 0
+		sentence_error = False
+		length = len(words)
+		self.sent_length_totals.setdefault(length, 0)
+		self.sent_length_totals[length] += 1
+
+		for j, w in enumerate(words):
+			self.matrix.add(gold[j], predicted[j])
+			if predicted[j] != gold[j]:
+				error_count += 1
+				sentence_error = True
+
+		if not sentence_error:
+			self.sent_correct.setdefault(length, 0)
+			self.sent_correct[length] += 1
+
+		if verbose:
+			POSTaggerMeasure.print_solution(words, predicted, gold)
+			correct = len(words) - error_count
+			print "Correct:", correct, "/", len(words), ", rate:", "%.1f" % (float(correct) / len(words) * 100), "%"
+
+	def totals(self):
+		print_heading("Post-Of-Speech (POS) Tagger")
+		totals = self.log()
+		print "Tag:", totals['POS tag'], "%"
+		print "Sentence: ", totals['POS Sent.'], "%"
+
+	@classmethod
+	def print_solution(cls, sentence, guess, gold):
+		row_format = '{0}'
+		for k, w in enumerate(sentence):
+			row_format += "{"+str(k+1)+":<"+str(max(len(w), len(gold[k]))+1)+"}"
+		print row_format.format("words: ", *sentence)
+		print row_format.format("gold:  ", *gold)
+		print row_format.format("guess: ", *guess)
+
+
+class UASMeasure(object):
+	def __init__(self):
+		self.correct = 0
+		self.total = 0
+		self.sentences_correct = 0
+		self.sentences_total = 0
+
+	@classmethod
+	def cols(self):
+		return ['UAS', 'UAS Sent.']
+
+	def log(self):
+		return {'UAS': "{:>4.2f}".format(float(self.correct) / self.total * 100),
+			    'UAS Sent.': "{:>4.2f}".format(float(self.sentences_correct) / self.sentences_total * 100)}
+
+	def test(self, heads, gold, verbose=True):
+		self.sentences_total += 1
+		error = False
+		for i, h in enumerate(heads):
+			if h is None:
+				continue
+			self.total += 1
+			if h == gold[i]:
+				self.correct += 1
+			else:
+				error = True
+		if not error:
+			self.sentences_correct += 1
+
+	def totals(self):
+		scores = self.log()
+		print_heading("Unlabeled Attachment Score (UAS)")
+		print "UAS:", scores['UAS']
+		print "Sentence:", scores['UAS Sent.']
+
+def print_heading(text):
+	n = len(text)
+	print "\n", n * '='
+	print text
+	print n * '-'

@@ -31,11 +31,15 @@ class Experiment(object):
 
 		self.no_cache = args.no_cache
 		self.no_save = args.no_save
+		self.no_log = args.no_log
 		self.name = args.name
 		self.comment = args.comment
 
+		self.params = {}
+		self.params.update(vars(args))
+
 		# Dict. we can throw output into
-		self.log = {
+		self._log = {
 			"Data": self._data_set_id,
 			"Name": args.name,
 			"Comment": args.comment,
@@ -48,13 +52,14 @@ class Experiment(object):
 
 			# Load the next script in the que
 			m = self.load(script)
+			m.load(self.dir('working'))
 
 			# Load save previous module if not present
 			if previous_module is None and not self.no_cache:
 				if not m.input_module is None:
 					previous_module = self.load(m.input_module)
-					previous_module.load()
-					print "Loaded: ", previous_module.__class__.__name__
+					previous_module.load(self.dir('working'))
+					print "Loaded:", previous_module.__class__.__name__
 
 			# Do the work
 			success = m.run(previous_module)
@@ -64,14 +69,14 @@ class Experiment(object):
 			if success:
 				if not self.no_save:
 					print "Saving", script
-					m.save(self.dir('working'))
+					m.save(self, self.dir('working'))
 			else:
 				# Need to pull and error here
 				print str(script) + " failed! Work not saved."
 				break
 
 	def dir(self, name, check=True):
-		dir = path.join(self.config(name), self._data_set_id, self.name)
+		dir = path.join(self.get(name), self._data_set_id, self.name)
 		if check:
 			self.check_path(dir)
 		return dir
@@ -80,12 +85,18 @@ class Experiment(object):
 		with open(self.dir('output')+'/'+file_name, 'a') as f:
 			f.write(text)
 
-	def config(self, variable):
-		""" Accessor for the config
-		:param variable: section in the ini file
-		:return: str
-		"""
-		return self._config.get(self._data_set_id, variable)
+	def get(self, var):
+		if var in self.params:
+			out = self.params[var]
+			self._log.update({var: out})
+			print var, out
+		else:
+			out = self._config.get(self._data_set_id, var)
+		return out
+
+	def log(self, what, value):
+		if not self.no_log:
+			self._log.update({what: value})
 
 	@classmethod
 	def get_date(cls):
@@ -94,18 +105,17 @@ class Experiment(object):
 
 	@classmethod
 	def check_path(cls, dir):
-		""" Check to see if a path exists and if not then create it """
+		""" Check to see if a path exists and if not then create it. """
 		if not path.exists(dir):
 			os.makedirs(dir)
 
 	def load(self, name):
-		"""
-		Dynamically load a module and instantiate its class.
-		"""
+		""" Dynamically load a module and instantiate its class."""
 		package, cls = name.rsplit('.', 1)
 		module = importlib.import_module(name, package)
 		m = getattr(module, cls)
-		return m(self)
+		new = m(self)
+		return new
 
 
 class MachineLearningModule:  # Interface.
@@ -114,14 +124,12 @@ class MachineLearningModule:  # Interface.
 		or simply loaded from a previous run in case of crashes in the middle of long
 		pipelines or if it is redundant to keep recalculating the same thing.
 	"""
+	PREVIOUS_MODULE = None
 
 	def __init__(self, experiment):
-		"""
-		:param config: Instance of ConfigParser.
-		:param data_set_id: data set ID which should be a group in the .ini file
-		"""
-		self.input_module = None
 		self._experiment = experiment
+		self.keepers = {}  # what to keep and pass on down the pipe. All that gets saved to disk.
+		self.input_module = self.PREVIOUS_MODULE  # Expected model to run before this one. This is clumsy.
 
 	def run(self, previous):
 		""" Do the work
@@ -129,32 +137,46 @@ class MachineLearningModule:  # Interface.
 		raise NotImplementedError( "Should have implemented this" )
 		return False  # return True if all went well
 
-	def save(self, path = None, filename_prefix = ''):
+	def save(self, data, path = None):
 		""" Save the output.
 			Ideally so that a run() can be skipped
 		"""
-		full_path = self.get_save_file_name(path, filename_prefix)
+		full_path = self.get_save_file_name(path)
 		copy = dict(self.__dict__)
 		copy.pop('_experiment')  # don't save
-		with open(full_path, 'wb') as f:
-			pickle.dump(copy, f, 2)
-		print "Saved", full_path
+		self.backup(copy, full_path)
 		return full_path
 
 	def load(self, path = None, filename_prefix = ''):
 		""" Load the saved output
 			Instead of of run()?
 		"""
-		full_path = self.get_save_file_name(path, filename_prefix)
-		if not os.path.exists(full_path):
-			print "Could not load", full_path
+		full_path = self.get_save_file_name(path)
+		tmp_dict = self.restore(full_path)
+		if tmp_dict:
+			tmp_dict['_experiment'] = self._experiment
+			self.__dict__.update(tmp_dict)
+			print "Loaded", full_path
+			return full_path
+		else:
 			return False
-		with open(full_path, 'rb') as f:
-			tmp_dict = pickle.load(f)
-		tmp_dict['_experiment'] = self._experiment
-		self.__dict__.update(tmp_dict)
-		print "Loaded", full_path
-		return full_path
+
+	@classmethod
+	def backup(cls, data, save_path):
+		""" Save the given data. """
+		with open(save_path, 'wb') as f:
+			pickle.dump(data, f, 2)
+			print "Saved", save_path
+
+	@classmethod
+	def restore(cls, save_dir):
+		""" Load the given file and return it. """
+		if not path.exists(save_dir):
+			print "Could not load", save_dir
+			return False
+		else:
+			with open(save_dir, 'rb') as f:
+				return pickle.load(f)
 
 	def delete(self, path = None, filename_prefix = ''):
 		""" Remove saved file
@@ -164,18 +186,18 @@ class MachineLearningModule:  # Interface.
 			print "Removing", full_path
 			os.remove(full_path)
 
-	def get_save_file_name(self, path = None, filename_prefix = ''):
+	def get_save_file_name(self, path = None):
 		""" Return a unique filename.
 		"""
 		if path is None:
 			path = self.dir('working')
-		return path + '/' + self.__class__.__name__ + "_data" + filename_prefix + ".pickle"
+		return path + '/' + self.__class__.__name__ + "_data.pickle"
 
 	def dir(self, name):
 		return self._experiment.dir(name)
 
 	def get_input_file_name(self):
-		return self.config("training_file")
+		return self.get("training_file")
 
 	def pickle_file(self):
 		return self.working_dir() + '/' + self.get_save_file_name()
@@ -191,29 +213,23 @@ class MachineLearningModule:  # Interface.
 		:param variable: section in the ini file
 		:return: str
 		"""
-		return self._experiment.config(variable)
+		print "MachineLearningModule.get() DEPRECIATED"
+		return self._experiment.get(variable)
+
+	def get(self, variable):
+		""" Accessor for the config
+		:param variable: section in the ini file
+		:return: str
+		"""
+		return self._experiment.get(variable)
+
 
 	def out(self, file_name, text):
 		self._experiment.out(file_name, text)
 
-	def log(self, file_name, text):
-		self._experiment.log(file_name, text)
+	def log(self, key, value):
+		self._experiment.log(key, value)
+		return value
 
-
-# Fix for picking instance methods
-
-# def _pickle_method(method):
-# 	func_name = method.im_func.__name__
-# 	obj = method.im_self
-# 	cls = method.im_class
-# 	return _unpickle_method, (func_name, obj, cls)
-#
-# def _unpickle_method(func_name, obj, cls):
-# 	try:
-# 		func = cls.__dict__[func_name]
-# 	except KeyError:
-# 		pass
-# 	return func.__get__(obj, cls)
-#
-# copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
-
+	def cols(self):
+		return self._experiment.log.keys()

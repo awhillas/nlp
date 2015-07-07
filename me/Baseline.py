@@ -7,7 +7,7 @@ Baseline tagging. Most frequent tag.
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.MaxEntMarkovModel import CollinsNormalisation
-from lib.pos_tagging import tag_all
+#from lib.pos_tagging import tag_all
 
 class Baseline(MachineLearningModule):
 	def __init__(self, experiment):

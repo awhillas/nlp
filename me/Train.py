@@ -10,43 +10,24 @@ from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, Coll
 import time
 
 class Train(MachineLearningModule):
-	def __init__(self, experiment):
-		MachineLearningModule.__init__(self, experiment)
-		self.model = MaxEntMarkovModel(Ratnaparkhi96Features, CollinsNormalisation)
-
 	def run(self, _):
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		training_data = data.tagged_sents(self.config('training_file'))
+		# cv_data = data.tagged_sents(self.config('cross_validation_file')) # TODO: Use cross-validation set to tune the regularization param.
+		reg = self.get('regularization')
+		mxitr = self.get('maxiter')
 
-		if self._experiment.no_cache or not self.load(filename_prefix="_memm"):
-			print "Training MaxEnt model..."
-			# Get data
+		print "Training MaxEnt model..."
 
-			# Learn features
-			self.model.train(training_data)
-			#self._experiment.log["Features"] = len(self.model.weights)  # TODO: doesn't seem to make it ?
-			print "Features:", len(self.model.weights)
+		# Learn features
+		self.tagger.train(training_data, regularization=reg, maxiter=mxitr)
+		self.log("Features", "{:,}".format(len(self.tagger.weights)))
 
-		# Learn feature weights
+		return True
 
-		# TODO Use the CV training set to tune the regularization_parameter of the MaxEntMarkovModel i.e. smaller param. learning cycles
+	def save(self, path = None, filename_prefix=None):
+		return self.tagger.save(self.working_dir(), filename_prefix='-reg_%.2f' % float(self.get('regularization')))
 
-		iterations = int(self.config('iterations'))
-		reg = float(self.config('regularization'))
-		mxitr = int(self.config('maxiter'))
-
-		for i in range(0, iterations):
-			print "Iteration set #", i+1, "of", iterations  # incrementally... in case we overheat and crash :-/
-			self.model.learn_parameters(training_data, regularization=reg, maxiter=mxitr)
-			if not self._experiment.no_save:
-				self.save(filename_prefix="_memm")
-			time.sleep(5)
-
-		self.delete(filename_prefix="_memm")  # Remove temp backup file
-		self.model.save(self.working_dir())
-
-
-		# TODO: Use cross-validation set to tune the regularization param.
-		# cv_data = data.tagged_sents(self.config('cross_validation_file'))
-
-		return self.model
+	def load(self, path = None, filename_prefix=None):
+		self.tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+		return self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % float(self.get('regularization')))

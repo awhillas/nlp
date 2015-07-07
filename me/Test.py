@@ -11,12 +11,8 @@ class Test(MachineLearningModule):
 	def __init__(self, experiment):
 		MachineLearningModule.__init__(self, experiment)
 		self.input_module = 'me.Predict'
-		# Output logging
-		log_keys = ["Name", "Date", "Model", "Data", "Features", "Train Iter.", "Reg.", "Max Iter.", "Word %", "Sentence %", "Comment"]
-		self.logger = self.logger = CSVLogger(self.config('output') + "/POS-tagging.log.csv", log_keys)
 
-	def run(self, tagger):
-		# TODO: move most of this inside the confusion matrix
+	def run(self, previous):
 		def print_sol(sentence, guess, gold):
 			row_format = '{0}'
 			for k, w in enumerate(words):
@@ -25,11 +21,11 @@ class Test(MachineLearningModule):
 			print row_format.format("gold:  ", *gold)
 			print row_format.format("guess: ", *guess)
 
-		predicted = tagger.labeled_sequences
+		predicted = previous.labeled_sequences
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		gold_labeled_sequences = data.tagged_sents(self.config('testing_file'))
+		gold_labeled_sequences = data.tagged_sents(self.config('cv_file'))
 
-		all_labels = tagger.model.tag_count.keys()
+		all_labels = previous.tagger.tag_count.keys()
 
 		matrix = ConfusionMatrix(all_labels)
 		sents = 0
@@ -51,28 +47,13 @@ class Test(MachineLearningModule):
 			error_count = sum([1 if predicted_labels[i] == gold_labels[i] else 0 for i,_ in enumerate(gold_labels)])
 			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
 
-		print "Tag:", "{:>4.2f}".format(matrix.precision() * 100), "%"
-		print "Sentence: ", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100), "%"
+		print "Tag:", self.log("Word %", "{:>4.2f}".format(matrix.precision() * 100)), "%"
+		print "Sentence: ", self.log("Sent. %", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100)), "%"
 
-		if not self._experiment.no_save:
-			itr = int(self.config('iterations'))
-			reg = float(self.config('regularization'))
-			mxitr = int(self.config('maxiter'))
-			word_precision = matrix.precision() * 100
-			sent_precision = float(sents) / len(gold_labeled_sequences) * 100
-			# Save confusion matrix
-			self.out("confusion_matrix,iter-{0},reg-{1},maxiter-{2},tag-{3:4.1f}%,sent-{4:4.1f}%.csv".format(itr, reg, mxitr, word_precision, sent_precision), matrix.csv())
-			# Log run
-			self.logger.add(**dict({
-				"Date": self._experiment.get_date(),
-				"Features": len(tagger.model.weights),
-				"Model": "MaxEnt",
-				"Data": self._experiment._data_set_id,
-				"Train Iter.": itr,
-				"Reg.": reg,
-				"Max Iter.": mxitr,
-				"Word %": round(word_precision, 2),
-				"Sentence %": round(sent_precision, 2)
-			}.items() + self._experiment.log.items()))
+		if not self._experiment.no_log:
+			columns = ['Name','Data','regularization','maxiter','Features','Word %','Sent. %','Total Time','Comment']
+			logger = CSVLogger(self.dir('output') + "/pos-tagging.log.csv", columns)
+			run_id = logger.add(**self._experiment._log)
+			self.out("{0}_confusion_matrix,reg-{0}.csv".format(run_id, self.get('regularization')), matrix.csv())
 
 		return True

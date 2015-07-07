@@ -1,5 +1,7 @@
 .DS_Store
 *.profile
+config.ini
+_dispy_*
 
 # cProfile dumps
 dump.cprofile

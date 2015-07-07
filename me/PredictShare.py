@@ -4,11 +4,10 @@ MaxEnt Markov Model training
 import time, datetime
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
-from lib.pos_tagging import tag_all
+from lib.pos_tagging import tag_all_shared
 
-class Predict(MachineLearningModule):
+class PredictShare(MachineLearningModule):
 	PREVIOUS_MODULE = 'me.Train'
-	BACKUP_FILENAME = '/memm_labeled_sequences'
 
 	def run(self, previous):
 		self.tagger = previous.tagger
@@ -16,10 +15,14 @@ class Predict(MachineLearningModule):
 
 		# Using the MaxEnt model
 		start = time.time()
-		self.labeled_sequences = tag_all(
+		tag_all_shared(
 			data.sents(self.get('cv_file')),
 			tagger=self.tagger.label,
-			normaliser=self.tagger.normaliser
+			normaliser=self.tagger.normaliser,
+			working_path=self.dir('working'),
+			block_size=10,
+			output_pickle='/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization')
 		)
 		self.log("Total Time", str(datetime.timedelta(seconds= (time.time() - start))))
-		return True
+
+		return False  # Don't save
