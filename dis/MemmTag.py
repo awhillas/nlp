@@ -42,7 +42,7 @@ class MemmTag(MachineLearningModule):
 			if job.status != dispy.DispyJob.Finished:
 				print('job %s failed: %s' % (job.id, job.exception))
 			else:
-				print('%s, %s:\n%s' % (job.id, job.result))
+				print('%s:\n%s' % (job.id, job.result))
 				# print('%s executed job %s at %s with %s\n%s' % (host, job.id, job.start_time, n, job.result))
 				labeled_sequences["".join(unlabeled[i])] = job.result
 		cluster.stats()
