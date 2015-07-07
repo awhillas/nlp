@@ -1,6 +1,7 @@
 import dispy
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
+from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 
 def setup(): # executed on each node before jobs are scheduled
 	from lib.ml_framework import Experiment
@@ -20,7 +21,7 @@ def compute(model_file, sentence):
 	return tagger.tag(sentence)
 
 # # # # # # # # # # # distributed part
-class Predict(MachineLearningModule):
+class MemmTag(MachineLearningModule):
 
 	def run(self, previous):
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
