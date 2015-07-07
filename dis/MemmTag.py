@@ -58,9 +58,5 @@ class MemmTag(MachineLearningModule):
 			cluster.close()
 
 		tags = save_data(jobs)
-		print "tags", tags
-		print "length", len(tags)
-		print "saving to", self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg
-
 		self.backup(tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg)
 		return False
