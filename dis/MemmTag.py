@@ -1,4 +1,4 @@
-import dispy
+import dispy, dispy.httpd
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
@@ -25,11 +25,13 @@ def compute(model_file, sentence):
 class MemmTag(MachineLearningModule):
 
 	def run(self, previous):
+		http_server = None
 		labeled_sequences = {}
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
 		model_file = MaxEntMarkovModel.save_file(self.dir('working'), '-reg_%.2f' % self.get('regularization'))
 
 		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
+		http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
 		jobs = []
 		unlabeled = data.sents(self.get('cv_file'))
 		for i, sentence in enumerate(unlabeled):
@@ -37,15 +39,21 @@ class MemmTag(MachineLearningModule):
 			job.id = i
 			jobs.append(job)
 
-		for job in jobs:
-			job()
-			if job.status != dispy.DispyJob.Finished:
-				print('job %s failed: %s' % (job.id, job.exception))
-			else:
-				print('%s:\n%s' % (job.id, job.result))
-				# print('%s executed job %s at %s with %s\n%s' % (host, job.id, job.start_time, n, job.result))
-				labeled_sequences["".join(unlabeled[i])] = job.result
-		cluster.stats()
+		if http_server is not None:
+			for job in jobs:
+				job()
+				if job.status != dispy.DispyJob.Finished:
+					print('job %s failed: %s' % (job.id, job.exception))
+				else:
+					print('%s: %s' % (job.id, job.result))
+					# print('%s executed job %s at %s with %s\n%s' % (host, job.id, job.start_time, n, job.result))
+					labeled_sequences["".join(unlabeled[i])] = job.result
+			cluster.stats()
+		else:
+			cluster.wait() # wait for all jobs to finish
+			http_server.shutdown() # this waits until browser gets all updates
+			cluster.close()
+
 
 		self.backup(labeled_sequences, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
 		return False

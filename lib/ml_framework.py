@@ -162,11 +162,11 @@ class MachineLearningModule:  # Interface.
 			return False
 
 	@classmethod
-	def backup(cls, data, path):
+	def backup(cls, data, save_path):
 		""" Save the given data. """
-		with open(path, 'wb') as f:
+		with open(save_path, 'wb') as f:
 			pickle.dump(data, f, 2)
-			print "Saved", path
+			print "Saved", save_path
 
 	@classmethod
 	def restore(cls, save_dir):
