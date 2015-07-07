@@ -41,7 +41,6 @@ class MemmTag(MachineLearningModule):
 			job()
 			if job.status != dispy.DispyJob.Finished:
 				print('job %s failed: %s' % (job.id, job.exception))
-				return False
 			else:
 				print('%s: %s' % (job.id, job.result))
 				self.labeled_sequences["".join(unlabeled[i])] = job.result
