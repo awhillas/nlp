@@ -194,15 +194,19 @@ class MaxEntMarkovModel(SequenceModel):
 		self.word_tag_count = {}  # Keep track of word -> tag -> count
 		self.tagdict = {}  # To be used for fast lookup of unambigous words
 
+	@classmethod
+	def save_file(cls, save_dir=None, filename_prefix = ''):
+		return path.join(save_dir, cls.__class__.__name__ + filename_prefix + ".pickle")
+
 	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
-		pickle.dump(self.__dict__, open(path.join(save_dir, self.__class__.__name__ + filename_prefix + ".pickle"), 'wb'), -1)
+		pickle.dump(self.__dict__, open(self.save_file(save_dir, filename_prefix), 'wb'), -1)
 
 	def load(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
-		file_name = path.join(save_dir, self.__class__.__name__ + filename_prefix + ".pickle")
+		file_name = self.save_file(save_dir, filename_prefix)
 		if path.exists(file_name):
 			self.__dict__.update(pickle.load(open(file_name)))
 			return True

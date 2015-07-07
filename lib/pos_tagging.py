@@ -103,7 +103,7 @@ def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', bloc
 			with open(counter_file, 'w') as f:
 				f.write(str(new_start))
 
-			safe_log(log_file, '{0} sentences, doing {1} to {2}\n'.format(total_sents, start, stop))		
+			safe_log(log_file, '{0} sentences, doing {1} to {2}\n'.format(total_sents, start, stop))
 
 		for i in xrange(start, stop):
 			print "Sentence {0} ({1:2.2f}%)".format(i, float(i)/total_sents * 100)
@@ -126,7 +126,7 @@ def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', bloc
 			print "Time:", '%.3f' % (t1 - t0), ", Per word:", '%.3f' % ((t1 - t0) / len(seq))
 			out["".join(seq)] = tags
 	
-	safe_log(log_file, "{0} Saving tagged examples".format(len(out)))
+	safe_log(log_file, "{0} Saving tagged examples\n".format(len(out)))
 	update_shared_dict(out, working_path + output_pickle)  # finished so write the output to a common pickled dict
 
 def safe_log(log_file, text):
