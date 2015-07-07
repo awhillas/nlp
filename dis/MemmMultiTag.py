@@ -22,16 +22,16 @@ def compute(model_file, sentence):
 	return tagger.tag(sentence)
 
 
-class MemmTag(MachineLearningModule):
+class MemmMultiTag(MachineLearningModule):
 
 	def run(self, previous):
-		labeled_sequences = {}
+		tags = {}
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		unlabeled = data.sents(self.get('cv_file'))
 		model_file = MaxEntMarkovModel.save_file(self.dir('working'), '-reg_%.2f' % float(self.get('regularization')))
 
 		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
 		jobs = []
-		unlabeled = data.sents(self.get('cv_file'))
 		for i, sentence in enumerate(unlabeled):
 			job = cluster.submit(model_file, sentence)
 			job.id = i
@@ -44,10 +44,11 @@ class MemmTag(MachineLearningModule):
 			else:
 				# print('%s, %s:\n%s' % (host, job.id, job.result))
 				print('%s executed job %s at %s with %s\n%s' % (host, job.id, job.start_time, n, job.result))
-				labeled_sequences["".join(unlabeled[i])] = job.result
+				tags["".join(unlabeled[i])] = job.result
 		cluster.stats()
 
-		self.backup(labeled_sequences, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
-		return False
+		self.backup(tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
+		return True
 
 	def save(self, data, path = None):
+		pass
