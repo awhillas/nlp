@@ -13,9 +13,9 @@ class TaggerMemm(MachineLearningModule):
 
 		print "Training MaxEnt tagger"
 
-		reg = float(self.config('regularization'))
-		mxitr = int(self.config('maxiter'))
-		ambiguity = self.log_me('Ambiguity', float(self.config('ambiguity')))
+		reg = self.get('regularization')
+		mxitr = self.get('maxiter')
+		ambiguity = self.get('ambiguity')
 
 		# 10 fold cross validation
 		self.tagged = {}
