@@ -9,7 +9,7 @@ Python Setup
 Setup Virtualenv if you havn't already
 
 	easy_install pip
-	pip install virtualenv virtualenvwrapper
+	sudo pip install virtualenv virtualenvwrapper
 
 Add the following to your `.bashrc`file
 
@@ -21,5 +21,4 @@ then run it `source ~/.bashrc` to
 
 create a new environment for the NLP project
 
-	mkproject -r requirements.txt nlp
-	workon nlp
+	mkvirtualenv -r requirements.txt nlp
