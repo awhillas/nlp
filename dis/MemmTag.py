@@ -46,3 +46,6 @@ class MemmTag(MachineLearningModule):
 				print('%s: %s' % (job.id, job.result))
 				self.labeled_sequences["".join(unlabeled[i])] = job.result
 		return True
+
+	def save(self, data, path = None):
+		self.backup(self.labeled_sequences, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
