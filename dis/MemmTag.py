@@ -49,5 +49,3 @@ class MemmTag(MachineLearningModule):
 
 		self.backup(labeled_sequences, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
 		return False
-
-	def save(self, data, path = None):
