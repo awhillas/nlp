@@ -27,7 +27,7 @@ class MemmTag(MachineLearningModule):
 	def run(self, previous):
 		labeled_sequences = {}
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
-		model_file = MaxEntMarkovModel.save_file(self.dir('working'), '-reg_%.2f' % float(self.get('regularization')))
+		model_file = MaxEntMarkovModel.save_file(self.dir('working'), '-reg_%.2f' % self.get('regularization'))
 
 		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
 		jobs = []

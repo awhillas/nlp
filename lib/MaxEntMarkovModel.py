@@ -196,7 +196,7 @@ class MaxEntMarkovModel(SequenceModel):
 
 	@classmethod
 	def save_file(cls, save_dir=None, filename_prefix = ''):
-		return path.join(save_dir, cls.__class__.__name__ + filename_prefix + ".pickle")
+		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle")
 
 	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
