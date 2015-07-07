@@ -26,7 +26,7 @@ class MemmTag(MachineLearningModule):
 	def run(self, previous):
 
 		def save_data(jobs):
-			labeled_sequences = {}
+			labeled_sequences = [[]] * len(jobs)
 			for job in jobs:
 				job()
 				if job.status != dispy.DispyJob.Finished:
@@ -34,7 +34,7 @@ class MemmTag(MachineLearningModule):
 				else:
 					print('%s: %s' % (job.id, job.result))
 					# print('%s executed job %s at %s with %s\n%s' % (host, job.id, job.start_time, n, job.result))
-					labeled_sequences["".join(unlabeled[i])] = job.result
+					labeled_sequences[job.id] = job.result
 			return labeled_sequences
 
 
