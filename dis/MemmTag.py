@@ -7,7 +7,7 @@ def setup(): # executed on each node before jobs are scheduled
 	from lib.ml_framework import Experiment
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	# stick imports into global scope, create global shared data
-	global Experiment, MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation, current_model_file
+	global Experiment, MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation, current_reg
 	current_reg = None
 	return 0
 
