@@ -2,7 +2,6 @@ import dispy
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
-import lib.MaxEntMarkovModel 
 
 def setup(): # executed on each node before jobs are scheduled
 	from lib.ml_framework import Experiment
@@ -22,23 +21,28 @@ def compute(model_file, sentence):
 		current_model_file = model_file
 	return tagger.tag(sentence)
 
-# # # # # # # # # # # distributed part
+
 class MemmTag(MachineLearningModule):
 
 	def run(self, previous):
+		self.labeled_sequences = {}
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
 		model_file = MaxEntMarkovModel.save_file(self.dir('working'), '-reg_%.2f' % float(self.get('regularization')))
 
 		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
 		jobs = []
-		for sentence in data.sents(self.get('cv_file')):
+		unlabeled = data.sents(self.get('cv_file'))
+		for i, sentence in enumerate(unlabeled):
 			job = cluster.submit(model_file, sentence)
-			# job.id = i
+			job.id = i
 			jobs.append(job)
 
 		for job in jobs:
 			job()
 			if job.status != dispy.DispyJob.Finished:
 				print('job %s failed: %s' % (job.id, job.exception))
+				return False
 			else:
 				print('%s: %s' % (job.id, job.result))
+				self.labeled_sequences["".join(unlabeled[i])] = job.result
+		return True

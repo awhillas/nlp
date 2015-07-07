@@ -87,9 +87,6 @@ def tag_all_shared(sequence_list, tagger, normaliser=None, working_path='', bloc
 			if path.exists(counter_file):
 				with open(counter_file, 'r') as f:
 					start = int(f.readline())
-			# else:
-			# 	with open(counter_file, 'w') as f:
-			# 		f.write(str(start))
 
 			if start == -1:
 				break
