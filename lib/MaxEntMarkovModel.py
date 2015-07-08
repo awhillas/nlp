@@ -392,7 +392,7 @@ class MaxEntMarkovModel(SequenceModel):
 		fb = ForwardBackward(self)
 		return fb.forward_backward(context, self.tag_count.keys())
 
-	def multi_tag(self, unlabeled_sequence, ambiguity = 0.3):
+	def multi_tag(self, unlabeled_sequence, ambiguity = 0.000001):
 		# From: Curran, Clark, Vadas (2006) Multi-Tagging for Lexicalized-Grammar Parsing
 		tags = []
 		normalised_sentence = self.normaliser.sentence(unlabeled_sequence)
