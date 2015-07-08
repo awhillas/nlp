@@ -1,10 +1,9 @@
 import dispy
 import dispy.httpd
-import functools.partial
+import functools
 
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
-from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 
 def setup(working_dir, fold_id): # executed on each node before jobs are scheduled
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
