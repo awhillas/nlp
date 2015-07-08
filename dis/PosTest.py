@@ -1,0 +1,59 @@
+__author__ = "Alexander Whillas <whillas@gmail.com>"
+
+from lib.ml_framework import MachineLearningModule
+from lib.conllu import ConlluReader
+from lib.measure import ConfusionMatrix
+from lib.csv_logger import CSVLogger
+
+
+class Test(MachineLearningModule):
+
+	def __init__(self, experiment):
+		MachineLearningModule.__init__(self, experiment)
+		# self.input_module = 'me.Predict'
+		self.input_module = 'dis.MemmTag'
+
+	def run(self, previous):
+		def print_sol(sentence, guess, gold):
+			row_format = '{0}'
+			for k, w in enumerate(words):
+				row_format += "{"+str(k+1)+":<"+str(max(len(w), len(gold[k]))+1)+"}"
+			print row_format.format("\nwords: ", *sentence)
+			print row_format.format("gold:  ", *gold)
+			print row_format.format("guess: ", *guess)
+
+		predicted = previous.labeled_sequences
+		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		gold_labeled_sequences = data.tagged_sents(self.config('cv_file'))
+
+		all_labels = previous.tagger.tag_count.keys()
+
+		matrix = ConfusionMatrix(all_labels)
+		sents = 0
+		for i, gold_seq in enumerate(gold_labeled_sequences):
+			words, gold_labels = zip(*gold_seq)
+			words2, predicted_labels = zip(*predicted[i])
+			sentence_error = False
+			for j, word in enumerate(words):
+				if word == words2[j]:
+					matrix.add(gold_labels[j], predicted_labels[j])
+					if gold_labels[j] != predicted_labels[j]:
+						sentence_error = True
+				else:
+					raise Exception("Sequences out of sync '%s' and (%s) ", " ".join(words), " ".join(predicted_labels))
+			if not sentence_error:
+				sents += 1
+			print_sol(words, predicted_labels, gold_labels)
+			error_count = sum([1 if predicted_labels[i] == gold_labels[i] else 0 for i,_ in enumerate(gold_labels)])
+			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
+
+		print "Tag:", self.log("Word %", "{:>4.2f}".format(matrix.precision() * 100)), "%"
+		print "Sentence: ", self.log("Sent. %", "{:>4.2f}".format(float(sents) / len(gold_labeled_sequences) * 100)), "%"
+
+		if not self._experiment.no_log:
+			columns = ['Name','Data','regularization','maxiter','Features','Word %','Sent. %','Total Time','Comment']
+			logger = CSVLogger(self.dir('output') + "/pos-tagging.log.csv", columns)
+			run_id = logger.add(**self._experiment._log)
+			self.out("{0}_confusion_matrix,reg-{0}.csv".format(run_id, self.get('regularization')), matrix.csv())
+
+		return True
