@@ -39,24 +39,25 @@ class MemmTag(MachineLearningModule):
 
 
 		http_server = None
-		reg = self.get('regularization')
+		#reg = self.get('regularization')
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		for reg in [0.1, 0.33, 0.66, 0.9, 1.0]:
+			cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
+			http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
+			jobs = []
+			unlabeled = data.sents(self.get('cv_file'))
+			for i, sentence in enumerate(unlabeled):
+				job = cluster.submit(self.dir('working'), reg, sentence)
+				job.id = i
+				jobs.append(job)
 
-		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
-		http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
-		jobs = []
-		unlabeled = data.sents(self.get('cv_file'))
-		for i, sentence in enumerate(unlabeled):
-			job = cluster.submit(self.dir('working'), reg, sentence)
-			job.id = i
-			jobs.append(job)
+			if http_server is not None:
+				cluster.wait() # wait for all jobs to finish
+				cluster.stats()
+				cluster.close()
 
-		if http_server is not None:
-			cluster.wait() # wait for all jobs to finish
-			http_server.shutdown() # this waits until browser gets all updates
-			cluster.stats()
-			cluster.close()
+			tags = save_data(jobs)
+			self.backup(tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg)
 
-		tags = save_data(jobs)
-		self.backup(tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg)
+		http_server.shutdown() # this waits until browser gets all updates
 		return False
