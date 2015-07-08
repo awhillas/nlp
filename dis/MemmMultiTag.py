@@ -42,7 +42,7 @@ class MemmMultiTag(MachineLearningModule):
 			http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
 			jobs = []
 			for j, sentence in enumerate(tagging):
-				job = cluster.submit(self.dir('working'), j, sentence)
+				job = cluster.submit(sentence)
 				job.id = i * j
 				jobs.append(job)
 			cluster.wait() # wait for all jobs to finish
