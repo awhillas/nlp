@@ -53,9 +53,9 @@ class MemmMultiTag(MachineLearningModule):
 		for i in range(num_folds):
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
-			for i, sentence in enumerate(tagging):
-				job = cluster.submit(self.dir('working'), i, sentence)
-				job.id = i
+			for j, sentence in enumerate(tagging):
+				job = cluster.submit(self.dir('working'), j, sentence)
+				job.id = i * j
 				jobs.append(job)
 			cluster.wait() # wait for all jobs to finish
 			http_server.shutdown() # this waits until browser gets all updates
