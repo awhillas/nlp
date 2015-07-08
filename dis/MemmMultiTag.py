@@ -14,9 +14,10 @@ def setup(working_dir, fold_id): # executed on each node before jobs are schedul
 
 def multi_tag(sentence):
 	s, _ = map(list, zip(*sentence))
-	single = tagger.tag(s)
+	# single = tagger.tag(s)
 	multi = tagger.multi_tag(s)  # get all multi tags and then filter them later to tune ambiguity.
-	return single, multi
+	# return single, multi
+	return multi
 
 class MemmMultiTag(MachineLearningModule):
 
@@ -55,10 +56,11 @@ class MemmMultiTag(MachineLearningModule):
 					print('job %s failed: %s' % (job.id, job.exception))
 				else:
 					print('%s: %s' % (job.id, job.result))
-					single, multi = job.result
-					training_tags.append(single)
+					# single, multi = job.result
+					multi = job.result
+					# training_tags.append(single)
 					training_tags_multi.append(multi)
 
-		self.backup(training_tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
+		# self.backup(training_tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
 		self.backup(training_tags_multi, self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
 		return False
