@@ -39,8 +39,7 @@ class Test(MachineLearningModule):
 					if gold_labels[j] != predicted_labels[j]:
 						sentence_error = True
 				else:
-					print "Sequences out of sync", words, words2
-					raise
+					raise Exception("Sequences out of sync '%s' and (%s) ", " ".join(words), " ".join(predicted_labels))
 			if not sentence_error:
 				sents += 1
 			print_sol(words, predicted_labels, gold_labels)
