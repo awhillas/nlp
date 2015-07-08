@@ -6,12 +6,9 @@ from lib.measure import ConfusionMatrix
 from lib.csv_logger import CSVLogger
 
 
-class Test(MachineLearningModule):
+class PosTest(MachineLearningModule):
 
-	def __init__(self, experiment):
-		MachineLearningModule.__init__(self, experiment)
-		# self.input_module = 'me.Predict'
-		self.input_module = 'dis.MemmTag'
+	PREVIOUS_MODULE = 'dis.MemmTag'
 
 	def run(self, previous):
 		def print_sol(sentence, guess, gold):
@@ -27,22 +24,23 @@ class Test(MachineLearningModule):
 		gold_labeled_sequences = data.tagged_sents(self.config('cv_file'))
 
 		all_labels = previous.tagger.tag_count.keys()
+		self.log('Features', "{:,}".format(len(previous.tagger.learnt_features.keys())))
 
 		matrix = ConfusionMatrix(all_labels)
 		sents = 0
 		for i, gold_seq in enumerate(gold_labeled_sequences):
 			words, gold_labels = zip(*gold_seq)
-			words2, predicted_labels = zip(*predicted[i])
+			predicted_labels = predicted[i]
 			sentence_error = False
-			for j, word in enumerate(words):
-				if word == words2[j]:
+			if len(words) == len(predicted_labels):
+				for j, word in enumerate(words):
 					matrix.add(gold_labels[j], predicted_labels[j])
 					if gold_labels[j] != predicted_labels[j]:
 						sentence_error = True
-				else:
-					raise Exception("Sequences out of sync '%s' and (%s) ", " ".join(words), " ".join(predicted_labels))
-			if not sentence_error:
-				sents += 1
+				if not sentence_error:
+					sents += 1
+			else:
+				raise Exception("Sequences out of sync '%s' and (%s) ", " ".join(words), " ".join(predicted_labels))
 			print_sol(words, predicted_labels, gold_labels)
 			error_count = sum([1 if predicted_labels[i] == gold_labels[i] else 0 for i,_ in enumerate(gold_labels)])
 			print "Correct:", error_count, "/", len(words), ", rate:", "%.1f" % (float(error_count) / len(words) * 100), "%"
@@ -54,6 +52,6 @@ class Test(MachineLearningModule):
 			columns = ['Name','Data','regularization','maxiter','Features','Word %','Sent. %','Total Time','Comment']
 			logger = CSVLogger(self.dir('output') + "/pos-tagging.log.csv", columns)
 			run_id = logger.add(**self._experiment._log)
-			self.out("{0}_confusion_matrix,reg-{0}.csv".format(run_id, self.get('regularization')), matrix.csv())
+			self.out("{:}_confusion_matrix,reg-{:0.4}.csv".format(run_id, self.get('regularization')), matrix.csv())
 
-		return True
+		return False
