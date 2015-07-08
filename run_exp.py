@@ -27,6 +27,8 @@ if __name__ == "__main__":
 						help="Maximum iterations for the MEMM's param. optimisation.")
 	parser.add_argument('-a', '--ambiguity', default=0.1, type=float,
 						help="Multi-tagging ambiguity level. The lower the closer to zero is more ambiguous.")
+	parser.add_argument('-f', '--fold', default=0, type=int,
+						help="Fold to train/test/tag with in 10-fold cross-validation.")
 
 	parser.add_argument('-c', '--config', default='./config.ini',
 						help='Path to a config file to use. If not provided "config.ini" in the same folder is assumed.')

@@ -6,10 +6,11 @@ from lib.conllu import ConlluReader
 from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 
 def setup(): # executed on each node before jobs are scheduled
-	from lib.ml_framework import Experiment
-	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
+	# from lib.ml_framework import Experiment
+	# from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	# stick imports into global scope, create global shared data
-	global Experiment, MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation, current_fold
+	# global Experiment, MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation, \
+	global current_fold
 	current_fold = None
 	return 0
 
@@ -19,7 +20,7 @@ def train(working_dir, fold_datas, fold_id, reg, mxitr):
 	tagger.save(working_dir, '-fold_%02d' % fold_id)
 
 
-class MemmMultiTag(MachineLearningModule):
+class MemmMultiTrain(MachineLearningModule):
 
 	def run(self, previous):
 		# Data
@@ -29,12 +30,10 @@ class MemmMultiTag(MachineLearningModule):
 
 		reg = self.get('regularization')
 		mxitr = self.get('maxiter')
-		ambiguity = self.get('ambiguity')
 
 		# 10 fold cross validation
 		num_folds = 10
 		subset_size = len(training)/num_folds
-		training_tags = {}  # Output: master set of CV tags built from the leave-1-out sets
 
 
 		# Train the model
