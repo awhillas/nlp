@@ -43,7 +43,7 @@ class MemmMultiTag(MachineLearningModule):
 		# 10 fold cross validation
 		num_folds = 10
 		subset_size = len(training)/num_folds
-		training_tags = {}  # Output: master set of CV tags built from the leave-1-out sets
+		training_tags = []  # Output: master set of CV tags built from the leave-1-out sets
 
 		# Tag the 1-left-out folds
 
@@ -54,20 +54,20 @@ class MemmMultiTag(MachineLearningModule):
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 			for i, sentence in enumerate(tagging):
-				job = cluster.submit(self.dir('working'), i, ambiguity, sentence)
+				job = cluster.submit(self.dir('working'), i, sentence)
 				job.id = i
 				jobs.append(job)
-		cluster.wait() # wait for all jobs to finish
-		http_server.shutdown() # this waits until browser gets all updates
-		cluster.close()
-
-		for job in jobs:
-			job()
-			if job.status != dispy.DispyJob.Finished:
-				print('job %s failed: %s' % (job.id, job.exception))
-			else:
-				print('%s: %s' % (job.id, job.result))
-				training_tags.append(job.result)
+			cluster.wait() # wait for all jobs to finish
+			http_server.shutdown() # this waits until browser gets all updates
+			cluster.close()
+			# collect the results in a single set.
+			for job in jobs:
+				job()
+				if job.status != dispy.DispyJob.Finished:
+					print('job %s failed: %s' % (job.id, job.exception))
+				else:
+					print('%s: %s' % (job.id, job.result))
+					training_tags.append(job.result)
 
 		self.backup(training_tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
 		return False
