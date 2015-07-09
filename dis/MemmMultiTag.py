@@ -49,7 +49,7 @@ class MemmMultiTag(MachineLearningModule):
 			jobs = []
 			for j, sentence in enumerate(tagging):
 				job = cluster.submit(sentence)
-				job.id = (i+1) * j
+				job.id = (i+1) * (j+1)
 				jobs.append(job)
 			cluster.wait() # wait for all jobs to finish
 			cluster.close()
