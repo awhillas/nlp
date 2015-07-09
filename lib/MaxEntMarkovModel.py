@@ -392,17 +392,27 @@ class MaxEntMarkovModel(SequenceModel):
 		fb = ForwardBackward(self)
 		return fb.forward_backward(context, self.tag_count.keys())
 
-	def multi_tag(self, unlabeled_sequence, ambiguity = 0.000001):
-		# From: Curran, Clark, Vadas (2006) Multi-Tagging for Lexicalized-Grammar Parsing
+	def multi_tag(self, unlabeled_sequence, ambiguity = 0.0):
 		tags = []
 		normalised_sentence = self.normaliser.sentence(unlabeled_sequence)
 		context = Context((normalised_sentence, self.guess_tags(normalised_sentence)))
 		distros = self.tag_probability_distributions(context)  # tag probability distributions for each word
-		for i, tag_probs in enumerate(distros):
+		tags = self.threshold(distros, ambiguity) if ambiguity > 0.0 else distros
+		show(tags, unlabeled_sequence)
+		return tags
+
+	@classmethod
+	def threshold(self, tag_probability_distributions, ambiguity):
+		""" Threshold based on a given ambiguity level which is a percentage of the highest probability in the distribution.
+		:param tag_probability_distribution: list of dicts which have tags as keys and probabilities as values
+		:param ambiguity: float between 0 and 1
+		:return: {tag: prob} dict
+		"""
+		tags = {}
+		for i, tag_probs in enumerate(tag_probability_distribution):
 			c_max = max(tag_probs.iterkeys(), key=(lambda key: tag_probs[key]))
 			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if p > ambiguity * tag_probs[c_max] )
 			tags.append(top_tags)
-		show(tags, unlabeled_sequence)
 		return tags
 
 	def probabilities(self, i, context, v=None):
