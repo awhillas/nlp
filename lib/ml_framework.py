@@ -223,6 +223,8 @@ class MachineLearningModule:  # Interface.
 		"""
 		return self._experiment.get(variable)
 
+	def get_log(self):
+		return self._experiment.log
 
 	def out(self, file_name, text):
 		self._experiment.out(file_name, text)

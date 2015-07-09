@@ -2,34 +2,16 @@ import random
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.PerceptronParser import AmbiguousParser
-from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 from ap import is_projective, dep_tree_to_list
-import cPickle as pickle
-from os.path import exists
+from lib.MaxEntMarkovModel import MaxEntMarkovModel
+from lib.csv_logger import CSVLogger
 
 class ParserMemmMulti(MachineLearningModule):
 	""" MEMM  multi-tagger into training of Perceptron Parser
 	"""
-	PREVIOUS_MODULE = 'ap.TaggerMemm'
-	BACKUP_FILENAME = '/multi-tagged_sentences'
+	PREVIOUS_MODULE = 'dis.MemmMultiTag'
 
 	def run(self, previous):
-
-		def backup(data, path):
-			with open(path, 'wb') as f:
-				pickle.dump(data, f, 2)
-				print "Saved", path
-
-		def restore(path):
-			if not exists(path):
-				print "Could not load", path
-				return False
-			else:
-				with open(path, 'rb') as f:
-					return pickle.load(f)
-
-		def multi_tags_backup_filename(ambiguity):
-			return self.working_dir() + ParserMemmMulti.BACKUP_FILENAME + '-ambiguity_%.2f' % ambiguity + '.pickle'
 
 		def train(pparser, tin_tags, sentences, nr_iter=3):
 			print "Training Parser"
@@ -38,7 +20,7 @@ class ParserMemmMulti(MachineLearningModule):
 				random.shuffle(sentences)
 				for i, (words, gold_tags, gold_heads) in enumerate(sentences):
 					if is_projective(gold_heads):  # filter non-projective trees
-						tags, multi_tags = tin_tags["".join(words)]  # i.e. tin is not gold
+						tags, multi_tags = tin_tags["".join(words)]
 						correct += pparser.train_one(words, tags, gold_heads, multi_tags)
 						total += len(words)
 				if total > 0:
@@ -51,22 +33,29 @@ class ParserMemmMulti(MachineLearningModule):
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		parsed_sentences = [(dep_tree_to_list(dep_tree)) for dep_tree in data.parsed_sents(self.config('training_file'))]
 
-		print "Start Parser training..."
 
-		self.tagger = previous.tagger
-		self.tagged = previous.tagged
-		self.parser = AmbiguousParser(load=False, save_dir=self.working_dir())
+		for ambiguity in [round(0.1 * i, 1) for i in range(10)]:  # i.e. 0.0 to 0.9
+			print "Start Parser training..."
+			self.log('ambiguity', ambiguity)
+			self.tagged = previous.tagged
+			self.parser = AmbiguousParser(load=False, save_dir=self.working_dir())
+			tin_tags = MaxEntMarkovModel.threshold(self.tagged, ambiguity)  # i.e. tin is not gold :>
+			train(self.parser, tin_tags, parsed_sentences, 15)
+			self.save(self.dir('working'), '-ambiguity_%.1f'%ambiguity)
 
-		train(self.parser, self.tagged, parsed_sentences, 15)
+			# Testing
+
+			print "Testing..."
+			pos = POSTaggerMeasure(tagger.get_classes())
+			uas = UASMeasure()
+			logger = CSVLogger(self.dir('output') + "/Parser_Multi-Tags.log.csv", pos.cols() + uas.cols() + list(reversed(self.cols())))
+
 
 		return True
 
-	def save(self, path = None, filename_prefix = ''):
-		self.parser.save(save_dir=self.working_dir())
-		# self.tagger.save(save_dir=self.working_dir())
+	def save(self, path = None, _ = ''):
+		self.parser.save(save_dir=path)
 
-	def load(self, path = None, filename_prefix = ''):
-		self.tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-		self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % self.get('regularization'))
-		self.parser = AmbiguousParser(load=True, save_dir=self.working_dir())
+	def load(self, path = None, _ = ''):
+		self.parser = AmbiguousParser(load=True, save_dir=path)
 

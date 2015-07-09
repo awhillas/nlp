@@ -69,13 +69,13 @@ class MemmMultiTag(MachineLearningModule):
 				else:
 					multi = job.result
 					self.tagged.append(multi)
-			self.save()
+			self.save(self.tagged)
 		http_server.shutdown()
 
 		return True  # call .save() when done.
 
 	def save(self, data, path = None):
-		self.backup(self.tagged, self._backup_file_path())
+		self.backup(data, self._backup_file_path())
 
 	def load(self, path = None, filename_prefix = ''):
 		self.tagged = self.restore(self._backup_file_path())
