@@ -32,16 +32,20 @@ class MemmMultiTag(MachineLearningModule):
 		subset_size = len(training)/num_folds
 		training_tags = []  # Output: master set of CV tags built from the leave-1-out sets
 		training_tags_multi = []
+		http_server = None
 
 		# Tag the 1-left-out folds and accumulate for parser training.
 
-		http_server = dispy.httpd.DispyHTTPServer() # monitor cluster(s) at http://localhost:8181
+		# monitor cluster(s) at http://localhost:8181
 		for i in range(num_folds):
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 			f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
 			cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True)
-			http_server.add_cluster(cluster)
+			if http_server is None:
+				http_server = dispy.httpd.DispyHTTPServer(cluster)
+			else:
+				http_server.add_cluster(cluster)
 			jobs = []
 			for j, sentence in enumerate(tagging):
 				job = cluster.submit(sentence)
