@@ -22,51 +22,63 @@ def multi_tag(sentence):
 class MemmMultiTag(MachineLearningModule):
 
 	def run(self, previous):
+		self.tagged = []
+
 		# Data
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		training = data.tagged_sents(self.config('training_file'))
 		# testing = data.sents(self.get('cv_file'))
 
-
 		num_folds = 10  # 10 fold cross validation
 		subset_size = len(training)/num_folds
-		training_tags = []  # Output: master set of CV tags built from the leave-1-out sets
-		training_tags_multi = []
 		http_server = None
 
 		# Tag the 1-left-out folds and accumulate for parser training.
 
-		# monitor cluster(s) at http://localhost:8181
+
 		for i in range(num_folds):
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 			f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
 			cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True)
+
+			# Monitor cluster
+
 			if http_server is None:
-				http_server = dispy.httpd.DispyHTTPServer(cluster)
+				http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster(s) at http://localhost:8181
 			else:
 				http_server.add_cluster(cluster)
+
+			# Create Jobs
+
 			jobs = []
 			for j, sentence in enumerate(tagging):
 				job = cluster.submit(sentence)
 				job.id = (i+1) * (j+1)
 				jobs.append(job)
 			cluster.wait() # wait for all jobs to finish
+			http_server.del_cluster(cluster)  # else we get an error when we try to re-add it
 			cluster.close()
-			# collect the results in a single set.
+
+			# Collect the results in a single set.
+
 			for job in jobs:
 				job()
 				if job.status != dispy.DispyJob.Finished:
 					raise Exception('job %s failed: %s' % (job.id, job.exception))
 				else:
-					# print('%s: %s' % (job.id, job.result))
-					# single, multi = job.result
 					multi = job.result
-					# training_tags.append(single)
-					training_tags_multi.append(multi)
+					self.tagged.append(multi)
+			self.save()
+		http_server.shutdown()
 
-		http_server.shutdown() # this waits until browser gets all updates
+		return True  # call .save() when done.
 
-		# self.backup(training_tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
-		self.backup(training_tags_multi, self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f.pickle' % self.get('regularization'))
-		return False
+	def save(self, data, path = None):
+		self.backup(self.tagged, self._backup_file_path())
+
+	def load(self, path = None, filename_prefix = ''):
+		self.tagged = self.restore(self._backup_file_path())
+
+	def _backup_file_path(self):
+		return self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f.pickle' % self.get('regularization')
