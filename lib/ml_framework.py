@@ -214,7 +214,7 @@ class MachineLearningModule:  # Interface.
 		:param variable: section in the ini file
 		:return: str
 		"""
-		print "MachineLearningModule.get() DEPRECIATED"
+		print "MachineLearningModule.config() DEPRECIATED"
 		return self._experiment.get(variable)
 
 	def get(self, variable):

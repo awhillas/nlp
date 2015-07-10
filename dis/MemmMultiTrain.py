@@ -30,7 +30,7 @@ class MemmMultiTrain(MachineLearningModule):
 
 		# 10 fold cross validation
 		num_folds = 10
-		subset_size = len(training)/num_folds
+		subset_size = len(training) / num_folds
 
 		# Train the model
 

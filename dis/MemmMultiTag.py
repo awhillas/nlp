@@ -21,12 +21,12 @@ def multi_tag(sentence):
 
 class MemmMultiTag(MachineLearningModule):
 
-	def run(self, previous):
+	def run(self, _):
 		self.tagged = []
 
 		# Data
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		training = data.tagged_sents(self.config('training_file'))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		training = data.tagged_sents(self.get('training_file'))
 		# testing = data.sents(self.get('cv_file'))
 
 		num_folds = 10  # 10 fold cross validation
@@ -78,7 +78,8 @@ class MemmMultiTag(MachineLearningModule):
 		self.backup(data, self._backup_file_path())
 
 	def load(self, path = None, filename_prefix = ''):
-		self.tagged = self.restore(self._backup_file_path())
+		# self.tagged = self.restore(self._backup_file_path())
+		pass
 
 	def _backup_file_path(self):
 		return self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f.pickle' % self.get('regularization')
