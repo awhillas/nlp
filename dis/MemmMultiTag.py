@@ -98,7 +98,7 @@ class MemmMultiTag(MachineLearningModule):
 		self.backup(data, self._backup_file_path(fold_id))
 
 	def load(self, path = None, filename_prefix = ''):
-		self.tagged = self.restore(self._backup_file_path())
+		self.tagged = self.restore(self._backup_file_path(0))
 		pass
 
 	def _backup_file_path(self, fold_id):
