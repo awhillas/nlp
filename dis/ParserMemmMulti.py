@@ -13,14 +13,15 @@ class ParserMemmMulti(MachineLearningModule):
 
 	def run(self, previous):
 
-		def train(pparser, tin_tags, sentences, nr_iter=3):
+		def train(pparser, multi_tags_sentences, sentences, ambiguity, nr_iter=3):
 			print "Training Parser"
 			for itn in range(nr_iter):
 				correct = 0; total = 0
 				random.shuffle(sentences)
 				for i, (words, gold_tags, gold_heads) in enumerate(sentences):
 					if is_projective(gold_heads):  # filter non-projective trees
-						tags, multi_tags = tin_tags["".join(words)]
+						multi_tags = MaxEntMarkovModel.threshold(multi_tags_sentences[i], ambiguity)
+						tags = MaxEntMarkovModel.threshold(multi_tags, 1.0)  # ambiguity = 1.0 == no ambiguity == 1-best tag
 						correct += pparser.train_one(words, tags, gold_heads, multi_tags)
 						total += len(words)
 				if total > 0:
@@ -32,23 +33,22 @@ class ParserMemmMulti(MachineLearningModule):
 		# Get (words, tags) sequences for all sentences
 		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
 		parsed_sentences = [(dep_tree_to_list(dep_tree)) for dep_tree in data.parsed_sents(self.config('training_file'))]
+		pos = POSTaggerMeasure(tagger.get_classes())
+		uas = UASMeasure()
+		logger = CSVLogger(self.dir('output') + "/Parser_Multi-Tags.log.csv", pos.cols() + uas.cols() + self.cols() + ['ambiguity'])
 
 
 		for ambiguity in [round(0.1 * i, 1) for i in range(10)]:  # i.e. 0.0 to 0.9
-			print "Start Parser training..."
 			self.log('ambiguity', ambiguity)
+
+			print "Start Parser training..."
+
 			self.tagged = previous.tagged
 			self.parser = AmbiguousParser(load=False, save_dir=self.working_dir())
-			tin_tags = MaxEntMarkovModel.threshold(self.tagged, ambiguity)  # i.e. tin is not gold :>
-			train(self.parser, tin_tags, parsed_sentences, 15)
+			train(self.parser, multi_tags, parsed_sentences, ambiguity, 15)
 			self.save(self.dir('working'), '-ambiguity_%.1f'%ambiguity)
 
-			# Testing
-
 			print "Testing..."
-			pos = POSTaggerMeasure(tagger.get_classes())
-			uas = UASMeasure()
-			logger = CSVLogger(self.dir('output') + "/Parser_Multi-Tags.log.csv", pos.cols() + uas.cols() + list(reversed(self.cols())))
 
 
 		return True
