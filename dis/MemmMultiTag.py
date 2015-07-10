@@ -1,6 +1,9 @@
 import dispy
 import dispy.httpd
 import functools
+import cPickle as pickle
+import gzip
+import os
 
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
@@ -18,6 +21,21 @@ def multi_tag(sentence):
 	multi = tagger.multi_tag(s)  # get all multi tags and then filter them later to tune ambiguity.
 	# return single, multi
 	return multi
+
+def decompress_model(self, fold_id):
+	from lib.MaxEntMarkovModel import MaxEntMarkovModel
+	file_name = MaxEntMarkovModel.save_file(self.dir('working'), '-fold_%02d' % fold_id)
+	file_name_gz = file_name + ".gz"
+	if os.path.exists(file_name_gz):
+		print "Decompressing %s" % file_name_gz
+		with gzip.open(file_name_gz) as f_in:
+			data = pickle.load(f_in)
+			with open(file_name, 'wb') as f_out:
+				pickle.dump(data, f_out, -1)
+				print "Decompressed model to %s" % file_name
+				return file_name
+	else:
+		raise Exception("File don't exist? %s" % file_name_gz)
 
 class MemmMultiTag(MachineLearningModule):
 
@@ -37,6 +55,7 @@ class MemmMultiTag(MachineLearningModule):
 
 
 		for i in range(num_folds):
+			current_model_file = decompress_model(self, i)  # unzip model
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 			f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
@@ -70,6 +89,7 @@ class MemmMultiTag(MachineLearningModule):
 					multi = job.result
 					self.tagged.append(multi)
 			self.save(self.tagged)
+			os.remove(current_model_file)
 		http_server.shutdown()
 
 		return True  # call .save() when done.
