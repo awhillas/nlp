@@ -197,7 +197,7 @@ class MaxEntMarkovModel(SequenceModel):
 
 	@classmethod
 	def save_file(cls, save_dir=None, filename_prefix = ''):
-		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle") + ".gz"
+		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle.gz")
 
 	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
@@ -212,8 +212,7 @@ class MaxEntMarkovModel(SequenceModel):
 			self.__dict__.update(pickle.load(gzip.open(file_name)))
 			return True
 		else:
-			print "MaxEntMarkovModel not loaded! File does not exist?", file_name
-			return False
+			raise Exception("MaxEntMarkovModel not loaded! File does not exist? '%s'" % file_name)
 
 	def get_labels(self, word):
 		""" Use tag dict. of all seen words. """
