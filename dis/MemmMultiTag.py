@@ -18,9 +18,9 @@ def setup(working_dir, fold_id): # executed on each node ONCE before jobs are sc
 def multi_tag(sentence):
 	s, _ = map(list, zip(*sentence))
 	# single = tagger.tag(s)
-	multi = tagger.multi_tag(s)  # get all multi tags and then filter them later to tune ambiguity.
+	multi = tagger.multi_tag(s, 0.01)  # remove the very unlikely
 	# return single, multi
-	return MaxEntMarkovModel.threshold(multi, 0.005)  # cull the highly unlikely
+	return multi
 
 def decompress_model(self, fold_id):
 	file_name = MaxEntMarkovModel.save_file(self.dir('working'), '-fold_%02d' % fold_id)
