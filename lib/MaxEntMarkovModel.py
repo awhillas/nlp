@@ -3,6 +3,7 @@ __author__ = "Alexander Whillas <whillas@gmail.com>"
 
 import re
 import string
+import gzip
 from math import exp, log, fsum
 from collections import defaultdict
 from sortedcontainers import SortedDict  # see http://www.grantjenks.com/docs/sortedcontainers/sorteddict.html
@@ -196,7 +197,7 @@ class MaxEntMarkovModel(SequenceModel):
 
 	@classmethod
 	def save_file(cls, save_dir=None, filename_prefix = ''):
-		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle")
+		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle") + ".gz"
 
 	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
@@ -208,7 +209,7 @@ class MaxEntMarkovModel(SequenceModel):
 			save_dir = path.join(path.dirname(__file__))
 		file_name = self.save_file(save_dir, filename_prefix)
 		if path.exists(file_name):
-			self.__dict__.update(pickle.load(open(file_name)))
+			self.__dict__.update(pickle.load(gzip.open(file_name)))
 			return True
 		else:
 			print "MaxEntMarkovModel not loaded! File does not exist?", file_name
