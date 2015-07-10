@@ -59,7 +59,7 @@ class MemmMultiTag(MachineLearningModule):
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 			f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
-			cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True, pulse_interval=2.0)
+			cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True)
 
 			# Monitor cluster
 
