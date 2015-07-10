@@ -214,6 +214,7 @@ class MaxEntMarkovModel(SequenceModel):
 			print "Loading MaxEntMarkovModel:", self.save_file(save_dir, filename_prefix)
 			with gzip.open(file_name) as f:
 				self.__dict__.update(pickle.load(f))
+			print "Model loaded."
 			return True
 		else:
 			raise Exception("MaxEntMarkovModel not loaded! File does not exist? '%s'" % file_name)
