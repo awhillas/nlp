@@ -418,6 +418,7 @@ class MaxEntMarkovModel(SequenceModel):
 			c_max = max(tag_probs.iterkeys(), key=(lambda key: tag_probs[key]))
 			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if c == c_max or p > (ambiguity * tag_probs[c_max]) )
 			tags.append(top_tags)
+		assert len(tags) == len(tag_probability_distributions)
 		return tags
 
 	def probabilities(self, i, context, v=None):
