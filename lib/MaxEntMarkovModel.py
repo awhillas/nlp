@@ -407,7 +407,7 @@ class MaxEntMarkovModel(SequenceModel):
 		return tags
 
 	@classmethod
-	def threshold(self, tag_probability_distributions, ambiguity):
+	def threshold(cls, tag_probability_distributions, ambiguity):
 		""" Threshold based on a given ambiguity level which is a percentage of the highest probability in the distribution.
 		:param tag_probability_distribution: list of dicts which have tags as keys and probabilities as values
 		:param ambiguity: float between 0 and 1
