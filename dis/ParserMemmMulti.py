@@ -50,6 +50,19 @@ class ParserMemmMulti(MachineLearningModule):
 
 			print "Testing..."
 
+			for i, sentence in enumerate(parsed_sentences):
+				words, gold_tags, gold_heads = dep_tree_to_list(sentence)
+				if is_projective(gold_heads):  # filter non-projective trees
+					print 'Testing', i, 'of', len(parsed_sentences)
+					# Do the business
+					tags = tagger.tag(words)
+					heads = parser.parse(words, tags)
+					# Measure it
+					uas.test(heads, gold_heads)
+					pos.test(words, tags, gold_tags)
+			# Show results
+			pos.totals()
+			uas.totals()
 
 		return True
 
