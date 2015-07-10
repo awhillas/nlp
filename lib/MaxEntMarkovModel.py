@@ -202,14 +202,18 @@ class MaxEntMarkovModel(SequenceModel):
 	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
-		pickle.dump(self.__dict__, open(self.save_file(save_dir, filename_prefix), 'wb'), -1)
+		print "Saving MaxEntMarkovModel:", self.save_file(save_dir, filename_prefix)
+		with gzip.open(self.save_file(save_dir, filename_prefix), 'wb') as f:
+			pickle.dump(self.__dict__, f, -1)
 
 	def load(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
 		file_name = self.save_file(save_dir, filename_prefix)
 		if path.exists(file_name):
-			self.__dict__.update(pickle.load(gzip.open(file_name)))
+			print "Loading MaxEntMarkovModel:", self.save_file(save_dir, filename_prefix)
+			with gzip.open(file_name) as f:
+				self.__dict__.update(pickle.load(f))
 			return True
 		else:
 			raise Exception("MaxEntMarkovModel not loaded! File does not exist? '%s'" % file_name)
