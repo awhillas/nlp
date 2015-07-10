@@ -29,7 +29,7 @@ from lib.MaxEntMarkovModel import *
 	('http://www.quora.com/#123', "!url!"),
 	(# Junk
 	'---------', '!allPunctuation!'),
-	('!@#$%^&*', '!allPunctuation!'),
+#	('!@#$%^&*', '!allPunctuation!'),
 	('!!!!', '!allPunctuation!'),
 
 	('U.S.A', '!acronym!'),
@@ -199,3 +199,32 @@ def test_word_class(input, expected):
 ])
 def test_brief_word_class(input, expected):
 	assert OrthographicFeatures.brief_word_class(OrthographicFeatures.word_class(input)) == expected
+
+@pytest.fixture
+def multi_tagged_sequence():
+	return [
+		{'a': 0.9, 'b': 0.1, 'c': 0.1},
+		{'a': 0.9, 'b': 0.82, 'c': 0.1},
+		{'a': 0.9, 'b': 0.82, 'c': 0.83},
+	]
+
+def test_threshold(multi_tagged_sequence):
+	t1 = MaxEntMarkovModel.threshold(multi_tagged_sequence, 0.9)
+	assert len(t1[0]) == 1
+	assert len(t1[1]) == 2
+	assert len(t1[2]) == 3
+
+	t2 = MaxEntMarkovModel.threshold(multi_tagged_sequence, 0.1)
+	assert len(t2[0]) == 3
+	assert len(t2[1]) == 3
+	assert len(t2[2]) == 3
+
+	t3 = MaxEntMarkovModel.threshold(multi_tagged_sequence, 0)
+	assert len(t3[0]) == 3
+	assert len(t3[1]) == 3
+	assert len(t3[2]) == 3
+
+	t4 = MaxEntMarkovModel.threshold(multi_tagged_sequence, 1.0)
+	assert len(t4[0]) == 1
+	assert len(t4[1]) == 1
+	assert len(t4[2]) == 1

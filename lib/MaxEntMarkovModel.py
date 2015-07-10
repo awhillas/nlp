@@ -413,10 +413,11 @@ class MaxEntMarkovModel(SequenceModel):
 		:param ambiguity: float between 0 and 1
 		:return: {tag: prob} dict
 		"""
-		tags = {}
+		tags = []
 		for i, tag_probs in enumerate(tag_probability_distributions):
 			c_max = max(tag_probs.iterkeys(), key=(lambda key: tag_probs[key]))
-			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if p > ambiguity * tag_probs[c_max] )
+			threshold = ambiguity * tag_probs[c_max]
+			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if c == c_max or p > threshold )
 			tags.append(top_tags)
 		return tags
 
