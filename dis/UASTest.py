@@ -43,9 +43,3 @@ class UASTest(MachineLearningModule):
 			logger.add(**data)
 
 		return False  # don't save
-
-	def save(self, data, path, filename_prefix = ''):
-		pass
-
-	def load(self, path, filename_prefix = ''):
-		pass
