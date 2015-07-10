@@ -31,8 +31,8 @@ class ParserMemmMulti(MachineLearningModule):
 
 
 		# Get (words, tags) sequences for all sentences
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		parsed_sentences = [(dep_tree_to_list(dep_tree)) for dep_tree in data.parsed_sents(self.config('training_file'))]
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		parsed_sentences = [(dep_tree_to_list(dep_tree)) for dep_tree in data.parsed_sents(self.get('training_file'))]
 		pos = POSTaggerMeasure(tagger.get_classes())
 		uas = UASMeasure()
 		logger = CSVLogger(self.dir('output') + "/Parser_Multi-Tags.log.csv", pos.cols() + uas.cols() + self.cols() + ['ambiguity'])
