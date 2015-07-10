@@ -14,7 +14,7 @@ import ConfigParser, importlib, time
 # import copy_reg
 # import types
 from datetime import date
-
+import gzip
 
 class Experiment(object):
 	"""
@@ -164,18 +164,19 @@ class MachineLearningModule:  # Interface.
 	@classmethod
 	def backup(cls, data, save_path):
 		""" Save the given data. """
-		with open(save_path, 'wb') as f:
+		with gzip.open(save_path+".gz", 'wb') as f:
 			pickle.dump(data, f, 2)
 			print "Saved", save_path
 
 	@classmethod
 	def restore(cls, save_dir):
 		""" Load the given file and return it. """
-		if not path.exists(save_dir):
+		save_dir_gz = save_dir+".gz"
+		if not path.exists(save_dir_gz):
 			print "Could not load", save_dir
 			return False
 		else:
-			with open(save_dir, 'rb') as f:
+			with gzip.open(save_dir_gz, 'rb') as f:
 				return pickle.load(f)
 
 	def delete(self, path = None, filename_prefix = ''):
