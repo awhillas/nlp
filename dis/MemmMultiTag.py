@@ -4,11 +4,11 @@ import functools
 import cPickle as pickle
 import gzip
 import os
-
+from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 
-def setup(working_dir, fold_id): # executed on each node before jobs are scheduled
+def setup(working_dir, fold_id): # executed on each node ONCE before jobs are scheduled
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	global tagger
 	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
@@ -20,10 +20,9 @@ def multi_tag(sentence):
 	# single = tagger.tag(s)
 	multi = tagger.multi_tag(s)  # get all multi tags and then filter them later to tune ambiguity.
 	# return single, multi
-	return multi
+	return MaxEntMarkovModel.threshold(multi, 0.005)  # cull the highly unlikely
 
 def decompress_model(self, fold_id):
-	from lib.MaxEntMarkovModel import MaxEntMarkovModel
 	file_name = MaxEntMarkovModel.save_file(self.dir('working'), '-fold_%02d' % fold_id)
 	file_name_gz = file_name + ".gz"
 	if os.path.exists(file_name_gz):
@@ -32,10 +31,10 @@ def decompress_model(self, fold_id):
 			data = pickle.load(f_in)
 			with open(file_name, 'wb') as f_out:
 				pickle.dump(data, f_out, -1)
-				print "Decompressed model to %s" % file_name
+				print "Decompressed to %s" % file_name
 				return file_name
 	else:
-		raise Exception("File don't exist? %s" % file_name_gz)
+		raise Exception("File don't exist, yo? %s" % file_name_gz)
 
 class MemmMultiTag(MachineLearningModule):
 
@@ -52,7 +51,6 @@ class MemmMultiTag(MachineLearningModule):
 		http_server = None
 
 		# Tag the 1-left-out folds and accumulate for parser training.
-
 
 		for i in range(num_folds):
 			current_model_file = decompress_model(self, i)  # unzip model
@@ -88,18 +86,20 @@ class MemmMultiTag(MachineLearningModule):
 				else:
 					multi = job.result
 					self.tagged.append(multi)
-			self.save(self.tagged)
-			os.remove(current_model_file)
+			self.save(self.tagged, i)
+			os.remove(current_model_file)  # remove unzipped version
 		http_server.shutdown()
 
 		return True  # call .save() when done.
 
-	def save(self, data, path = None):
-		self.backup(data, self._backup_file_path())
+	def save(self, data, fold_id = 0):
+		tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+		tagger.load(self.dir('working'), '-fold_%02d' % 0)
+		self.backup(data, self._backup_file_path(fold_id))
 
 	def load(self, path = None, filename_prefix = ''):
-		# self.tagged = self.restore(self._backup_file_path())
+		self.tagged = self.restore(self._backup_file_path())
 		pass
 
-	def _backup_file_path(self):
-		return self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f.pickle' % self.get('regularization')
+	def _backup_file_path(self, fold_id):
+		return self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f-fold_%d.pickle' % (self.get('regularization'), fold_id)

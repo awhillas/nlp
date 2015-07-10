@@ -174,7 +174,7 @@ class MachineLearningModule:  # Interface.
 		save_dir_gz = save_dir+".gz"
 		if not path.exists(save_dir_gz):
 			print "Could not load", save_dir
-			return False
+			return None
 		else:
 			with gzip.open(save_dir_gz, 'rb') as f:
 				return pickle.load(f)
