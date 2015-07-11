@@ -63,7 +63,7 @@ class MemmMultiTag(MachineLearningModule):
 
 		for i in range(num_folds):
 			print "Fold", i
-			skip_fold = True if os.path.exists(backup_file_path(i, self.get('regularization'))+".gz", ) else False  # save time is we've done it already
+			skip_fold = True if os.path.exists(backup_file_path(self.dir('working'), i, self.get('regularization'))+".gz", ) else False  # save time is we've done it already
 			if not skip_fold:
 				current_model_file = decompress_model(self, 0)  # unzip model
 				tagging = training[i*subset_size:][:subset_size]
@@ -108,7 +108,7 @@ class MemmMultiTag(MachineLearningModule):
 		return False
 
 	def save(self, data, fold_id = 0):
-		self.backup(data, backup_file_path(fold_id, self.get('regularization')))
+		self.backup(data, backup_file_path(self.dir('working'), fold_id, self.get('regularization')))
 
 	def load(self, path = None, filename_prefix = ''):
 		# self.tagged = self.restore(backup_file_path(0, self.get('regularization')))
