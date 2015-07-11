@@ -61,51 +61,52 @@ class MemmMultiTag(MachineLearningModule):
 
 		# Tag the 1-left-out folds and accumulate for parser training.
 
-		current_model_file = decompress_model(self, 0)  # unzip model
 		for i in range(num_folds):
-			tagging = training[i*subset_size:][:subset_size]
-			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
-			f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
-			cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True)
+			skip_fold = True if os.path.exists(self._backup_file_path(i)+".gz") else False  # save time is we've done it already
+			if not skip_fold:
+				current_model_file = decompress_model(self, 0)  # unzip model
+				tagging = training[i*subset_size:][:subset_size]
+				# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
+				f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
+				cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True)
 
-			# Monitor cluster
+				# Monitor cluster
 
-			if http_server is None:
-				http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster(s) at http://localhost:8181
-			else:
-				http_server.add_cluster(cluster)
-
-			# Create Jobs
-
-			jobs = []
-			for j, sentence in enumerate(tagging):
-				job = cluster.submit(sentence)
-				job.id = (i+1) * (j+1)
-				jobs.append(job)
-			next_model_file = decompress_model(self, i+1)  # unzip next model wihle waiting
-			cluster.wait() # wait for all jobs to finish
-			http_server.del_cluster(cluster)  # else we get an error when we try to re-add it
-			cluster.close()
-
-			# Collect the results in a single set.
-
-			for job in jobs:
-				job()
-				if job.status != dispy.DispyJob.Finished:
-					raise Exception('job %s failed: %s' % (job.id, job.exception))
+				if http_server is None:
+					http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster(s) at http://localhost:8181
 				else:
-					multi = job.result
-					self.tagged.append(multi)
-			self.save(self.tagged, i)
-			os.remove(current_model_file)  # remove unzipped version
-			current_model_file = next_model_file
-		http_server.shutdown()
+					http_server.add_cluster(cluster)
 
-		return True  # call .save() when done.
+				# Create Jobs
+
+				jobs = []
+				for j, sentence in enumerate(tagging):
+					job = cluster.submit(sentence)
+					job.id = (i+1) * (j+1)
+					jobs.append(job)
+				# next_model_file = decompress_model(self, i+1)  # unzip next model while waiting
+				cluster.wait() # wait for all jobs to finish
+				http_server.del_cluster(cluster)  # else we get an error when we try to re-add it
+				cluster.close()
+
+				# Collect the results in a single set.
+
+				for job in jobs:
+					job()
+					if job.status != dispy.DispyJob.Finished:
+						raise Exception('job %s failed: %s' % (job.id, job.exception))
+					else:
+						multi = job.result
+						self.tagged.append(multi)
+				self.save(self.tagged, i)
+				os.remove(current_model_file)  # remove unzipped version
+				# current_model_file = next_model_file
+			else:
+				continue
+		http_server.shutdown()
+		return False
 
 	def save(self, data, fold_id = 0):
-		#tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-		#tagger.load(self.dir('working'), '-fold_%02d' % 0)
 		self.backup(data, self._backup_file_path(fold_id))
 
 	def load(self, path = None, filename_prefix = ''):
