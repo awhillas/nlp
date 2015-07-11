@@ -12,8 +12,8 @@ class MaxEntFoldTrain(MachineLearningModule):
 
 	def run(self, previous):
 		# Data
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		training = data.tagged_sents(self.config('training_file'))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		training = data.tagged_sents(self.get('training_file'))
 		reg = self.get('regularization')
 		mxitr = self.get('maxiter')
 

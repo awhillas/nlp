@@ -8,8 +8,8 @@ class TaggerMemm(MachineLearningModule):
 	def run(self, _=None):
 
 		# Get (words, tags) sequences for all sentences
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		training = data.tagged_sents(self.config('training_file'))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		training = data.tagged_sents(self.get('training_file'))
 
 		print "Training MaxEnt tagger"
 
@@ -39,12 +39,12 @@ class TaggerMemm(MachineLearningModule):
 		return True
 
 	def save(self, path = None):
-		ambiguity = float(self.config('ambiguity'))
+		ambiguity = float(self.get('ambiguity'))
 		self.backup(self.tagged, self.working_dir() + 'memm_multi_tagged_sentences-ambiguity_%.2f.pickle' % ambiguity)
-		return self.tagger.save(self.working_dir(), filename_prefix='-reg_%.2f' % self.config('regularization'))
+		return self.tagger.save(self.working_dir(), filename_prefix='-reg_%.2f' % self.get('regularization'))
 
 	def load(self, path = None):
-		ambiguity = float(self.config('ambiguity'))
+		ambiguity = float(self.get('ambiguity'))
 		# self.tagged = self.restore(self.tagged, self.working_dir() + 'memm_multi_tagged_sentences_ambiguity-%.2f.pickle' % ambiguity)
 		self.tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
 		return self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % self.get('regularization'))

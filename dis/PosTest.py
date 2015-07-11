@@ -20,8 +20,8 @@ class PosTest(MachineLearningModule):
 			print row_format.format("guess: ", *guess)
 
 		predicted = previous.labeled_sequences
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		gold_labeled_sequences = data.tagged_sents(self.config('cv_file'))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		gold_labeled_sequences = data.tagged_sents(self.get('cv_file'))
 
 		all_labels = previous.tagger.tag_count.keys()
 		self.log('Features', "{:,}".format(len(previous.tagger.learnt_features.keys())))

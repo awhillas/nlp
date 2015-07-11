@@ -18,11 +18,11 @@ class Baseline(MachineLearningModule):
 
 	def run(self, trained):
 		self.model = trained.model
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
 
 		# Baseline model
 		self.labeled_sequences = tag_all(
-			data.sents(self.config('testing_file')),
+			data.sents(self.get('testing_file')),
 			tagger=self.model.frequency_tag,
 			normaliser=CollinsNormalisation
 		)

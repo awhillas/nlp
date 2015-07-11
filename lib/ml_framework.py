@@ -225,7 +225,7 @@ class MachineLearningModule:  # Interface.
 		return self._experiment.get(variable)
 
 	def get_log(self):
-		return self._experiment.log
+		return self._experiment._log
 
 	def out(self, file_name, text):
 		self._experiment.out(file_name, text)
@@ -235,4 +235,4 @@ class MachineLearningModule:  # Interface.
 		return value
 
 	def cols(self):
-		return self._experiment.log.keys()
+		return self.get_log().keys()

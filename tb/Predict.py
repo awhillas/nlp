@@ -21,13 +21,13 @@ class Predict(MachineLearningModule):
 
 		# Init
 
-		reader = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		reader = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
 		tron = PerceptronTagger(load=False)
 		tron.load(loc=self.working_dir()+'/PerceptronTaggerModel.pickle')
 
 		# generate tags
 
-		for s in reader.sents(self.config('testing_file')):
+		for s in reader.sents(self.get('testing_file')):
 			predicted = tron.tag(s)
 			if len(predicted) > 0:
 				words, tags = zip(*predicted)

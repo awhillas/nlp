@@ -19,7 +19,7 @@ class Parse(MachineLearningModule):
 			print "Parsing..."
 			#output = open(config.get(data_set_id, "output") + "/cyk_bnc_init.results.txt", "w+")
 			i = 1
-			for line in open(self.config("testing_file"), 'r'):
+			for line in open(self.get("testing_file"), 'r'):
 
 				start = time.clock()
 				print '\n#', i, ': ', line

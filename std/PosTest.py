@@ -17,8 +17,8 @@ class PosTest(MachineLearningModule):
 		m = Measure()
 		tag_error_count = {}
 
-		with open(self.working_dir()+'/'+self.config('output_file'), 'r') as auto_file:
-			with open(self.working_dir()+'/'+self.config('gold_output'), 'r') as gold_file:
+		with open(self.working_dir()+'/'+self.get('output_file'), 'r') as auto_file:
+			with open(self.working_dir()+'/'+self.get('gold_output'), 'r') as gold_file:
 
 				for gold_line in gold_file:
 					gold = gold_line.strip().split(" ")

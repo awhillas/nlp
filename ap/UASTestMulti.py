@@ -11,15 +11,15 @@ class UASTestMulti(MachineLearningModule):
 
 	def run(self, previous):
 		# Get (words, tags) sequences for all sentences
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		parsed_sentences = data.parsed_sents(self.config('testing_file'))
-		ambiguity = self.log_me('Ambiguity', float(self.config('ambiguity')))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		parsed_sentences = data.parsed_sents(self.get('testing_file'))
+		ambiguity = self.log_me('Ambiguity', float(self.get('ambiguity')))
 
 		tagger = previous.tagger
 		parser = previous.parser
 		pos = POSTaggerMeasure(tagger.get_classes())
 		uas = UASMeasure()
-		logger = CSVLogger(self.config('output') + "/Parser-tagger.log.csv", pos.cols() + uas.cols() + list(reversed(self.cols())))
+		logger = CSVLogger(self.get('output') + "/Parser-tagger.log.csv", pos.cols() + uas.cols() + list(reversed(self.cols())))
 
 		for i, sentence in enumerate(parsed_sentences):
 			words, gold_tags, gold_heads = dep_tree_to_list(sentence)

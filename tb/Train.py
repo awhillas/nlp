@@ -14,8 +14,8 @@ class Train(MachineLearningModule):
 
 		# Get (words, tags) sequences for all sentences
 
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		training_data = data.tagged_sents(self.config('training_file'))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		training_data = data.tagged_sents(self.get('training_file'))
 
 		sentences = []
 		for s in training_data:

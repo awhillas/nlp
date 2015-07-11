@@ -11,9 +11,9 @@ import time
 
 class Train(MachineLearningModule):
 	def run(self, _):
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		training_data = data.tagged_sents(self.config('training_file'))
-		# cv_data = data.tagged_sents(self.config('cross_validation_file')) # TODO: Use cross-validation set to tune the regularization param.
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		training_data = data.tagged_sents(self.get('training_file'))
+		# cv_data = data.tagged_sents(self.get('cross_validation_file')) # TODO: Use cross-validation set to tune the regularization param.
 		reg = self.get('regularization')
 		mxitr = self.get('maxiter')
 

@@ -18,8 +18,8 @@ class TaggerPtron(MachineLearningModule):
 				tagger.model.average_weights()
 
 		# Get (words, tags) sequences for all sentences
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
-		tagged_sentences = data.tagged_sents(self.config('training_file'))
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
+		tagged_sentences = data.tagged_sents(self.get('training_file'))
 		tagger = PerceptronTagger(load=False, save_dir=self.working_dir())
 
 		print "Preceptron tagger"

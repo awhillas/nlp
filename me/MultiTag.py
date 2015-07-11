@@ -13,9 +13,9 @@ class MultiTag(MachineLearningModule):
 
 	def run(self, previous):
 		self.model = previous.model
-		data = ConlluReader(self.config('uni_dep_base'), '.*\.conllu')  # Corpus
+		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
 
-		for s in data.sents(self.config('testing_file')):
+		for s in data.sents(self.get('testing_file')):
 			self.labeled_sequences = self.model.multi_tag(s)
 
 		return True
