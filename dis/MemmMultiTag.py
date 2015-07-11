@@ -33,17 +33,17 @@ def multi_tag(sentence):
 
 def decompress_model(self, fold_id):
 	file_name = MaxEntMarkovModel.save_file(self.dir('working'), '-fold_%02d' % fold_id)
-	# file_name_gz = file_name + ".gz"
-	if os.path.exists(file_name):
-		print "Decompressing %s" % file_name
-		with gzip.open(file_name) as f_in:
+	file_name_gz = file_name + ".gz"
+	if os.path.exists(file_name_gz):
+		print "Decompressing %s" % file_name_gz
+		with gzip.open(file_name_gz) as f_in:
 			data = pickle.load(f_in)
 			with open(file_name, 'wb') as f_out:
 				pickle.dump(data, f_out, -1)
 				print "Decompressed to %s" % file_name
 				return file_name
 	else:
-		raise Exception("File don't exist, yo? %s" % file_name)
+		raise Exception("File don't exist, yo? %s" % file_name_gz)
 
 class MemmMultiTag(MachineLearningModule):
 
