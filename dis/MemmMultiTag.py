@@ -66,7 +66,8 @@ class MemmMultiTag(MachineLearningModule):
 			skip_fold = True if os.path.exists(backup_file_path(self.dir('working'), i, self.get('regularization'))+".gz", ) else False  # save time is we've done it already
 			if not skip_fold:
 				current_model_file = decompress_model(self, 0)  # unzip model
-				tagging = training[i*subset_size:][:subset_size]
+				unsorted_tagging = training[i*subset_size:][:subset_size]
+				tagging = reversed(sorted(unsorted_tagging, key=lambda k: len(unsorted_tagging))) # sort to longest first
 				# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 				f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
 				cluster = dispy.JobCluster(multi_tag, setup=f, cleanup=cleanup, reentrant=True)
@@ -91,14 +92,16 @@ class MemmMultiTag(MachineLearningModule):
 				cluster.close()
 
 				# Collect the results in a single set.
-
+				faild = 0
 				for job in jobs:
 					job()
 					if job.status != dispy.DispyJob.Finished:
-						raise Exception('job %s failed: %s' % (job.id, job.exception))
+						faild += 1
+						# raise Exception('job %s failed: %s' % (job.id, job.exception))
 					else:
 						multi = job.result
 						self.tagged.update(multi)
+				print faild, "failed jobs"
 				self.save(self.tagged, i)
 				os.remove(current_model_file)  # remove unzipped version
 				# current_model_file = next_model_file
