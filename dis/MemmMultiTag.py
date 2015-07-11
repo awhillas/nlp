@@ -29,7 +29,7 @@ def multi_tag(sentence):
 	# single = tagger.tag(s)
 	multi = tagger.multi_tag(s, 0.01)  # remove the very unlikely
 	# return single, multi
-	return multi
+	return {"".join(sentence): multi}
 
 def decompress_model(self, fold_id):
 	file_name = MaxEntMarkovModel.save_file(self.dir('working'), '-fold_%02d' % fold_id)
@@ -48,7 +48,7 @@ def decompress_model(self, fold_id):
 class MemmMultiTag(MachineLearningModule):
 
 	def run(self, _):
-		self.tagged = []
+		self.tagged = {}
 
 		# Data
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
@@ -62,13 +62,14 @@ class MemmMultiTag(MachineLearningModule):
 		# Tag the 1-left-out folds and accumulate for parser training.
 
 		for i in range(num_folds):
-			skip_fold = True if os.path.exists(self._backup_file_path(i)+".gz") else False  # save time is we've done it already
+			print "Fold", i
+			skip_fold = True if os.path.exists(backup_file_path(i, self.get('regularization'))+".gz", ) else False  # save time is we've done it already
 			if not skip_fold:
 				current_model_file = decompress_model(self, 0)  # unzip model
 				tagging = training[i*subset_size:][:subset_size]
 				# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 				f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
-				cluster = dispy.JobCluster(multi_tag, setup=f, reentrant=True)
+				cluster = dispy.JobCluster(multi_tag, setup=f, cleanup=cleanup, reentrant=True)
 
 				# Monitor cluster
 
@@ -97,7 +98,7 @@ class MemmMultiTag(MachineLearningModule):
 						raise Exception('job %s failed: %s' % (job.id, job.exception))
 					else:
 						multi = job.result
-						self.tagged.append(multi)
+						self.tagged.update(multi)
 				self.save(self.tagged, i)
 				os.remove(current_model_file)  # remove unzipped version
 				# current_model_file = next_model_file
@@ -107,11 +108,11 @@ class MemmMultiTag(MachineLearningModule):
 		return False
 
 	def save(self, data, fold_id = 0):
-		self.backup(data, self._backup_file_path(fold_id))
+		self.backup(data, backup_file_path(fold_id, self.get('regularization')))
 
 	def load(self, path = None, filename_prefix = ''):
-		self.tagged = self.restore(self._backup_file_path(0))
+		# self.tagged = self.restore(backup_file_path(0, self.get('regularization')))
 		pass
 
-	def _backup_file_path(self, fold_id):
-		return self.dir('working') + '/memm_multi-tagged_sentences-reg_%.2f-fold_%d.pickle' % (self.get('regularization'), fold_id)
+def backup_file_path(working_dir, fold_id, reg):
+	return working_dir + '/memm_multi-tagged_sentences-reg_%.2f-fold_%d.pickle' % (reg, fold_id)
