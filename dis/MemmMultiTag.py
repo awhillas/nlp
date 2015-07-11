@@ -9,14 +9,15 @@ from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 
 def setup(working_dir, fold_id): # executed on each node ONCE before jobs are scheduled
-	import sys
 	global tagger
-	if 'lib.MaxEntMarkovModel' in sys.modules:
-		reload(lib.MaxEntMarkovModel)
-	else:
-		from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
+	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-	return 0 if tagger.load(working_dir, '-fold_%02d' % fold_id) else 1
+	try:
+		tagger.load(working_dir, '-fold_%02d' % fold_id)
+	except:
+		return 1
+	else:
+		return 0
 
 def cleanup():
 	import gc
