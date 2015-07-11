@@ -21,7 +21,7 @@ class Train(MachineLearningModule):
 
 		# Learn features
 		self.tagger.train(training_data, regularization=reg, maxiter=mxitr)
-		self.log("Features", "{:,}".format(len(self.tagger.weights)))
+		self.log("MaxEnt Features", "{:,}".format(len(self.tagger.weights)))
 
 		return True
 
@@ -30,4 +30,9 @@ class Train(MachineLearningModule):
 
 	def load(self, path = None, filename_prefix=None):
 		self.tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-		return self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % float(self.get('regularization')))
+		try:
+			self.tagger.load(self.working_dir(), filename_prefix='-reg_%.2f' % float(self.get('regularization')))
+		except:
+			return None
+		else:
+			return True
