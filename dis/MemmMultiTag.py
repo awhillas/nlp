@@ -67,10 +67,10 @@ class MemmMultiTag(MachineLearningModule):
 			if not skip_fold:
 				current_model_file = decompress_model(self, i)  # unzip model
 				unsorted_tagging = training[i*subset_size:][:subset_size]
-				tagging = reversed(sorted(unsorted_tagging, key=lambda k: len(unsorted_tagging))) # sort to longest first
+				tagging = sorted(unsorted_tagging, key=lambda k: len(unsorted_tagging)) # sort to longest first
 				# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 				f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
-				cluster = dispy.JobCluster(multi_tag, setup=f, cleanup=cleanup, reentrant=True)
+				cluster = dispy.SharedJobCluster(multi_tag, setup=f, cleanup=cleanup, reentrant=True)
 
 				# Monitor cluster
 
