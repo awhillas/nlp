@@ -1,15 +1,24 @@
 import dispy, dispy.httpd
+import functools
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 
-def setup(): # executed on each node before jobs are scheduled
-	from lib.ml_framework import Experiment
+def setup(working_dir): # executed on each node ONCE before jobs are scheduled
+	global tagger
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
-	# stick imports into global scope, create global shared data
-	global Experiment, MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation, current_reg
-	current_reg = None
-	return 0
+	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+	try:
+		tagger.load(working_dir)
+	except:
+		return 1
+	else:
+		return 0
+
+def cleanup():
+	import gc
+	del globals()['tagger']
+	gc.collect()
 
 def compute(working_dir, reg, sentence):
 	global current_reg
@@ -41,10 +50,13 @@ class MemmTag(MachineLearningModule):
 		http_server = None
 		reg = self.get('regularization')
 		data = ConlluReader(self.get('uni_dep_base'), '.*\.conllu')  # Corpus
-		cluster = dispy.JobCluster(compute, setup=setup, reentrant=True)
+
+		f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
+		cluster = dispy.JobCluster(compute, setup=f, cleanup=cleanup, reentrant=True)
 		http_server = dispy.httpd.DispyHTTPServer(cluster) # monitor cluster at http://localhost:8181
 		jobs = []
-		unlabeled = data.sents(self.get('cv_file'))
+		# unlabeled = data.sents(self.get('cv_file'))
+		unlabeled = data.sents(self.get('testing_file'))
 		for i, sentence in enumerate(unlabeled):
 			job = cluster.submit(self.dir('working'), reg, sentence)
 			job.id = i
@@ -57,7 +69,7 @@ class MemmTag(MachineLearningModule):
 			cluster.close()
 
 		tags = save_data(jobs)
-		self.backup(tags, self.dir('working') + '/memm_tagged_sentences-reg_%.2f.pickle' % reg)
+		self.backup(tags, self.dir('working') + '/memm_tagged_testing_sentences-reg_%.2f.pickle' % reg)
 
 		return False
 
