@@ -9,10 +9,19 @@ from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 
 def setup(working_dir, fold_id): # executed on each node ONCE before jobs are scheduled
-	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
+	import sys
 	global tagger
+	if 'lib.MaxEntMarkovModel' in sys.modules:
+		reload(lib.MaxEntMarkovModel)
+	else:
+		from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
 	return 0 if tagger.load(working_dir, '-fold_%02d' % fold_id) else 1
+
+def cleanup():
+	import gc
+	del globals()['tagger']
+	gc.collect()
 
 def multi_tag(sentence):
 	s, _ = map(list, zip(*sentence))
@@ -46,13 +55,13 @@ class MemmMultiTag(MachineLearningModule):
 		# testing = data.sents(self.get('cv_file'))
 
 		num_folds = 10  # 10 fold cross validation
-		subset_size = len(training)/num_folds
+		subset_size = len(training) / num_folds
 		http_server = None
 
 		# Tag the 1-left-out folds and accumulate for parser training.
 
+		current_model_file = decompress_model(self, 0)  # unzip model
 		for i in range(num_folds):
-			current_model_file = decompress_model(self, i)  # unzip model
 			tagging = training[i*subset_size:][:subset_size]
 			# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 			f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
@@ -72,6 +81,7 @@ class MemmMultiTag(MachineLearningModule):
 				job = cluster.submit(sentence)
 				job.id = (i+1) * (j+1)
 				jobs.append(job)
+			next_model_file = decompress_model(self, i+1)  # unzip next model wihle waiting
 			cluster.wait() # wait for all jobs to finish
 			http_server.del_cluster(cluster)  # else we get an error when we try to re-add it
 			cluster.close()
@@ -87,13 +97,14 @@ class MemmMultiTag(MachineLearningModule):
 					self.tagged.append(multi)
 			self.save(self.tagged, i)
 			os.remove(current_model_file)  # remove unzipped version
+			current_model_file = next_model_file
 		http_server.shutdown()
 
 		return True  # call .save() when done.
 
 	def save(self, data, fold_id = 0):
-		tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-		tagger.load(self.dir('working'), '-fold_%02d' % 0)
+		#tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+		#tagger.load(self.dir('working'), '-fold_%02d' % 0)
 		self.backup(data, self._backup_file_path(fold_id))
 
 	def load(self, path = None, filename_prefix = ''):
