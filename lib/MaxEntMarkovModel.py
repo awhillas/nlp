@@ -184,7 +184,7 @@ class MaxEntMarkovModel(SequenceModel):
 		:param regularization_parameter: Parameter used to tune the regularization amount.
 		:return:
 		"""
-		super(MaxEntMarkovModel, self).__init__()
+		# super(MaxEntMarkovModel, self).__init__()
 		self.feature_templates = feature_templates
 		self.normaliser = word_normaliser
 		# self.learnt_features = SortedDict()  # all features broken down into counts for each label
