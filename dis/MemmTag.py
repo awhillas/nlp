@@ -3,11 +3,11 @@ import functools
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 
-def setup(working_dir, fold_id): # executed on each node ONCE before jobs are scheduled
+def setup(working_dir, reg): # executed on each node ONCE before jobs are scheduled
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	global tagger
 	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
-	tagger.load(working_dir, '-fold_%02d' % fold_id, True)
+	tagger.load(working_dir, '-reg_%.2f' % reg, True)
 	return 0
 
 def cleanup():
