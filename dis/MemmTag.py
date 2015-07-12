@@ -55,9 +55,9 @@ class MemmTag(MachineLearningModule):
 		http_server = None
 		for data_name in ['testing_file', 'cv_file']:
 
-			for tagging_type in [tag, multi_tag]:
+			unlabeled = data.sents(self.get(data_name))
 
-				unlabeled = data.sents(self.get(data_name))
+			for tagging_type in [tag, multi_tag]:
 
 				func = functools.partial(setup, self.dir('working'), reg)  # make setup function with some parameters
 				cluster = dispy.JobCluster(tagging_type, setup=func, cleanup=cleanup, reentrant=True)
