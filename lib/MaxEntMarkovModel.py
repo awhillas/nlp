@@ -12,6 +12,7 @@ from scipy import array
 import pandas
 from os import path
 import cPickle as pickle
+import gzip
 
 # Common functions
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -201,18 +202,21 @@ class MaxEntMarkovModel(SequenceModel):
 	def save(self, save_dir=None, filename_prefix = ''):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
-		print "Saving MaxEntMarkovModel:", self.save_file(save_dir, filename_prefix)
-		with open(self.save_file(save_dir, filename_prefix), 'wb') as f:
+		file_name = self.save_file(save_dir, filename_prefix)
+		print "Saving MaxEntMarkovModel:", file_name
+		with open(file_name, 'wb') as f:
 			pickle.dump(self.__dict__, f, -1)
 			print "Model saved!"
+		return file_name
 
-	def load(self, save_dir=None, filename_prefix = ''):
+	def load(self, save_dir=None, filename_prefix = '', zipped = False):
 		if save_dir is None:
 			save_dir = path.join(path.dirname(__file__))
-		file_name = self.save_file(save_dir, filename_prefix)
+		file_name = self.save_file(save_dir, filename_prefix) + ".gz" if zipped else ''
 		if path.exists(file_name):
-			print "Loading MaxEntMarkovModel:", self.save_file(save_dir, filename_prefix)
-			with open(file_name) as f:
+			print "Loading MaxEntMarkovModel:", file_name
+			op = gzip.open if zipped else open
+			with op(file_name, 'rb') as f:
 				self.__dict__.update(pickle.load(f))
 			print "Model loaded!"
 			return True
