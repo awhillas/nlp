@@ -108,14 +108,30 @@ class MemmMultiTag(MachineLearningModule):
 				continue
 		if http_server:
 			http_server.shutdown()
-		return False
+		return True
 
 	def save(self, data, fold_id = 0):
-		self.backup(data, backup_file_path(self.dir('working'), fold_id, self.get('regularization')))
-
-	def load(self, path = None, filename_prefix = ''):
-		# self.tagged = self.restore(backup_file_path(0, self.get('regularization')))
 		pass
+
+	def load(self, file_path = None, filename_prefix = ''):
+		# Merge folds into one.
+		num_folds = 10  # 10 fold cross validation
+		self.mult_tagged = {}
+		reg = self.get('regularization')
+		for i in range(num_folds):
+			file_path = backup_file_path(self.dir('working'), i, reg)
+			if os.path.exists(file_path + ".gz"):
+				self.mult_tagged.update(self.restore(file_path))
+			else:
+				raise Exception("Fold %d data missing!: %s" % (i, file_path + ".gz"))
+
+		tagger = load_memm_tagger(self.dir('working'), self.get('regularization'))
+		self.all_tags = tagger.get_classes()
+
+def load_memm_tagger(working_dir, reg=0.66):
+	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+	tagger.load(working_dir, '-reg_%.2f' % reg, True)
+	return tagger
 
 def backup_file_path(working_dir, fold_id, reg):
 	return working_dir + '/memm_multi-tagged_sentences-reg_%.2f-fold_%d.pickle' % (reg, fold_id)

@@ -179,6 +179,14 @@ class MachineLearningModule:  # Interface.
 			with gzip.open(save_dir_gz, 'rb') as f:
 				return pickle.load(f)
 
+	@classmethod
+	def remove(cls, file_path):
+		if path.exists(file_path):
+			print "Removing", file_path
+			os.remove(file_path)
+		else:
+			print "File not found, not removed:", file_path
+
 	def delete(self, path = None, filename_prefix = ''):
 		""" Remove saved file
 		"""

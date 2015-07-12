@@ -1,6 +1,6 @@
 import dispy
 import dispy.httpd
-
+import gzip, cPickle as pickle
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
 
@@ -12,7 +12,7 @@ def train(working_dir, fold_datas, fold_id, reg, mxitr):
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
 	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
 	tagger.train(fold_datas, regularization=reg, maxiter=mxitr)
-	tagger.save(working_dir, '-fold_%02d' % fold_id)
+	return tagger.save(working_dir, '-fold_%02d' % fold_id)
 
 
 class MemmMultiTrain(MachineLearningModule):
@@ -47,4 +47,15 @@ class MemmMultiTrain(MachineLearningModule):
 		http_server.shutdown() # this waits until browser gets all updates
 		cluster.close()
 
-		return False  # no saving this module.
+		for job in jobs:
+			job()
+			if job.status != dispy.DispyJob.Finished:
+				raise Exception('job %s failed: %s' % (job.id, job.exception))
+			else:
+				# Compress the models
+				with open(job.result, 'rb') as f:
+					self.backup(pickle.load(f), job.result)
+					self.remove(job.result)
+
+
+		return True  # no saving this module.
