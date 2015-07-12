@@ -2,6 +2,7 @@ import dispy, dispy.httpd
 import functools
 from lib.ml_framework import MachineLearningModule
 from lib.conllu import ConlluReader
+import os
 
 def setup(working_dir, reg): # executed on each node ONCE before jobs are scheduled
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
@@ -60,6 +61,14 @@ class MemmTag(MachineLearningModule):
 
 			for tagging_type in [tag, multi_tag]:
 
+				if tagging_type == tag:
+					data_type = '1-best'
+				else:
+					data_type = 'multi'
+
+				if os.path.exists(tagged_file_name(self.dir('working'), data_name, data_type, reg) + ".gz"):
+					continue
+
 				func = functools.partial(setup, self.dir('working'), reg)  # make setup function with some parameters
 				cluster = dispy.JobCluster(tagging_type, setup=func, cleanup=cleanup, reentrant=True)
 
@@ -79,10 +88,8 @@ class MemmTag(MachineLearningModule):
 
 				if tagging_type == tag:
 					tags = save_jobs_list_data(jobs)
-					data_type = '1-best'
 				else:
 					tags = save_jobs_dict_data(jobs)
-					data_type = 'multi'
 				self.backup(tags, tagged_file_name(self.dir('working'), data_name, data_type, reg))
 
 		if http_server:
