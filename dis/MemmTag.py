@@ -55,6 +55,7 @@ class MemmTag(MachineLearningModule):
 		http_server = None
 		for data_name in ['testing_file', 'cv_file']:
 
+			print "Loading", data_name
 			unlabeled = data.sents(self.get(data_name))
 
 			for tagging_type in [tag, multi_tag]:
