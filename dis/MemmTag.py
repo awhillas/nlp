@@ -5,6 +5,7 @@ from lib.conllu import ConlluReader
 
 def setup(working_dir, fold_id): # executed on each node ONCE before jobs are scheduled
 	from lib.MaxEntMarkovModel import MaxEntMarkovModel, Ratnaparkhi96Features, CollinsNormalisation
+	reload('lib.MaxEntMarkovModel')
 	global tagger
 	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
 	tagger.load(working_dir, '-fold_%02d' % fold_id, True)
@@ -85,7 +86,7 @@ class MemmTag(MachineLearningModule):
 				else:
 					tags = save_jobs_dict_data(jobs)
 					data_type = 'multi'
-				self.backup(tags, self.dir('working') + '/tagged_sentences_%s_%s-reg_%.2f.pickle' % (data_name, data_type, reg))
+				self.backup(tags, tagged_file_name(self.dir('working'), data_name, data_type, reg))
 
 		if http_server:
 			http_server.shutdown()
@@ -96,3 +97,6 @@ class MemmTag(MachineLearningModule):
 
 	def save(self, data, path = None):
 		pass
+
+def tagged_file_name(working_dir, data_name, data_type, reg):
+	return working_dir + '/tagged_sentences_%s_%s-reg_%.2f.pickle' % (data_name, data_type, reg)
