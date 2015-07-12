@@ -73,12 +73,9 @@ class MemmTag(MachineLearningModule):
 					job = cluster.submit(sentence)
 					job.id = i
 					jobs.append(job)
-
-				if http_server is not None:
-					cluster.wait() # wait for all jobs to finish
-					cluster.stats()
-					http_server.shutdown() # this waits until browser gets all updates
-					cluster.close()
+				cluster.wait() # wait for all jobs to finish
+				cluster.stats()
+				cluster.close()
 
 				if tagging_type == tag:
 					tags = save_jobs_list_data(jobs)
