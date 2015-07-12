@@ -64,7 +64,7 @@ class MemmMultiTag(MachineLearningModule):
 			skip_fold = True if os.path.exists(backup_file_path(self.dir('working'), i, reg)+".gz", ) else False  # save time is we've done it already
 			if not skip_fold:
 				current_model_file = decompress_model(self, i)  # unzip model
-				print "Fold", i, "from", i*subset_size, "to", subset_size
+				print "Fold", i, "from", i*subset_size, "to", i*subset_size+subset_size
 				unsorted_tagging = training[i*subset_size:][:subset_size]
 				# learning = training[:i*subset_size] + training[(i+1)*subset_size:]
 				f = functools.partial(setup, self.dir('working'), i)  # make setup function with some parameters
@@ -80,7 +80,8 @@ class MemmMultiTag(MachineLearningModule):
 				# Create Jobs
 
 				jobs = []
-				for j, sentence in enumerate(reversed(sorted(unsorted_tagging, key=lambda k: len(k)))):  # sort longest first?
+				reversed_n_kulled = list(reversed(sorted(unsorted_tagging, key=lambda k: len(k))))[3:]  # reverse sort by length & kull the top 3 longest
+				for j, sentence in enumerate(reversed_n_kulled):  # sort longest first?
 					job = cluster.submit(sentence)
 					job.id = (i+1) * (j+1)
 					jobs.append(job)
@@ -98,7 +99,6 @@ class MemmMultiTag(MachineLearningModule):
 						failed += 1
 						# raise Exception('job %s failed: %s' % (job.id, job.exception))
 					else:
-						print "Result", job.result
 						self.tagged.update(job.result)
 				print failed, "failed jobs"
 				self.save(self.tagged, i)
