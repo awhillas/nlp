@@ -58,4 +58,4 @@ class MemmMultiTrain(MachineLearningModule):
 					self.remove(job.result)
 
 
-		return True  # no saving this module.
+		return True

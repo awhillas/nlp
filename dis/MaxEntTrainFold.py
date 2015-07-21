@@ -8,7 +8,7 @@ def train(working_dir, fold_datas, fold_id, reg, mxitr):
 	tagger.save(working_dir, '-fold_%02d' % fold_id)
 
 
-class MaxEntFoldTrain(MachineLearningModule):
+class MaxEntTrainFold(MachineLearningModule):
 
 	def run(self, previous):
 		# Data

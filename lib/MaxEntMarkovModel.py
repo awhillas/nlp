@@ -171,304 +171,6 @@ class WordNormaliser(object):
 # Implementations
 #  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-class MaxEntMarkovModel(SequenceModel):
-	""" Maximum Entropy Markov Model
-		What makes it Markov is that the previous two labels are part of the
-		features which are passed on via th context.
-	"""
-
-	def __init__(self, feature_templates, word_normaliser):
-		"""
-		:param feature_templates: Instance of SequenceFeaturesTemplate
-		:param word_normaliser: Instance of WordNormaliser
-		:param regularization_parameter: Parameter used to tune the regularization amount.
-		:return:
-		"""
-		super(MaxEntMarkovModel, self).__init__()
-		self.feature_templates = feature_templates
-		self.normaliser = word_normaliser
-		# self.learnt_features = SortedDict()  # all features broken down into counts for each label
-		self.learnt_features = SortedDict()  # full features including labels
-		self.weights = SortedDict()  # lambdas aka feature weights aka model parameters
-		self.total = 0  # Total words seen in training corpus
-		self.tag_count = {}  # Keep a count of each tag
-		self.word_tag_count = {}  # Keep track of word -> tag -> count
-		self.tagdict = {}  # To be used for fast lookup of unambigous words
-
-	@classmethod
-	def save_file(cls, save_dir=None, filename_prefix = ''):
-		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle")
-
-	def save(self, save_dir=None, filename_prefix = ''):
-		if save_dir is None:
-			save_dir = path.join(path.dirname(__file__))
-		file_name = self.save_file(save_dir, filename_prefix)
-		print "Saving MaxEntMarkovModel:", file_name
-		with open(file_name, 'wb') as f:
-			pickle.dump(self.__dict__, f, -1)
-			print "Model saved!"
-		return file_name
-
-	def load(self, save_dir=None, filename_prefix = '', zipped = False):
-		if save_dir is None:
-			save_dir = path.join(path.dirname(__file__))
-		file_name = self.save_file(save_dir, filename_prefix) + ".gz" if zipped else ''
-		if path.exists(file_name):
-			print "Loading MaxEntMarkovModel:", file_name
-			op = gzip.open if zipped else open
-			with op(file_name, 'rb') as f:
-				self.__dict__.update(pickle.load(f))
-			print "Model loaded!"
-			return True
-		else:
-			raise Exception("MaxEntMarkovModel not loaded! File does not exist? '%s'" % file_name)
-
-	def get_labels(self, word):
-		""" Use tag dict. of all seen words. """
-		if word in self.word_tag_count:
-			return self.word_tag_count[word].keys()
-		else:
-			return self.tag_count.keys()
-
-	def guess_tag(self, word):
-		""" Use the more selective tagdict of seen tags. """
-		guess = self.tagdict.get(word)
-		return [guess] if guess else self.tag_count.keys()
-
-	def guess_tags(self, sentence):
-		tags = []
-		for word in sentence:
-			guess = self.tagdict.get(word)
-			tags.append(guess) if guess else tags.append('')
-		return tags
-
-	def get_classes(self):
-		return self.tag_count.keys()
-
-	def train(self, data, regularization=0.33, maxiter=1, optimise=True):
-		"""
-		:param data: List of sentences, Sentences are lists if (word, label) sequences.
-		:return: true on success, false otherwise
-		"""
-		for sentence in self.normaliser.all(data):
-			context = Context(sentence, self.feature_templates)
-			for i, word in enumerate(context.words):
-				label = context.labels[i]
-				self.add_tag(word, label)
-				for f in context.get_features(i, label):
-					self.learnt_features.setdefault(f, 0)
-					self.learnt_features[f] += 1
-					self.weights.setdefault(f, 1.0)  # initial default to 1.0
-		self._make_tagdict()
-		if optimise:
-			return self._learn_parameters(data, regularization, maxiter)
-		else:
-			return False
-
-	@classmethod
-	def _merge_weight_values(cls, features, values):
-		return SortedDict(izip(features, values))
-
-	def _learn_parameters(self, data, regularization, maxiter):
-		""" Learn the parameter vector (weights) for the model
-		:param data: List of sentences, Sentences are lists if (word, label) sequences.
-		:return: True on success, False otherwise
-		"""
-		print "Estimating parameters"
-
-		normaised_data = self.normaliser.all(data)
-
-		def objective(x):  # Objective function
-			v = self._merge_weight_values(self.weights.iterkeys(), x)
-			log_p = 0.0
-			for seq in normaised_data:
-				context = Context(seq, self.feature_templates)
-				for i, (_, label) in enumerate(seq):
-					probabilities = self.probabilities(i, context, v)
-					if probabilities[label] > 0.0:  # Getting zero some times...?
-						log_p += log(probabilities[label])
-
-			# Regularization
-			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
-
- 			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max:{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
-			return log_p - regulatiser
-
-		def inverse_gradient(x):
-			""" Inverse (coz we want the max. not min.) of the Gradient of the objective. """
-			v = self._merge_weight_values(self.weights.iterkeys(), x)
-			dV = SortedDict.fromkeys(self.weights.iterkeys(), 0.0)  # gradient vector output
-
-			# Expected/predicted feature counts
-
-			for n, seq in enumerate(normaised_data):
-				context = Context(seq, self.feature_templates)  # build all features for all positions in seq.
-				for i, _ in enumerate(seq):
-					probabilities = self.probabilities(i, context, v)  # get prob. for all labels at position i
-					for label in self.tag_count.iterkeys():
-						for feature in context.get_features(i, label):  # merge features with label at position i
-							if feature in v:
-								dV[feature] += probabilities[label]
-
-			# Actual feature counts + regularize
-			# Assumption: that the param. training is over the same data set as the feature extraction
-			for f, count in self.learnt_features.iteritems():
-				dV[f] -= count
-				dV[f] += v[f] * regularization
-
-			return array(dV.values())
-
-		# Maximise, actually.
-		params = self.weights.values()
-		bnds = [(-20, 20)] * len(params)  # upper and lower for each var max python can exp(*) without overflow
-		if len(params) > 0:
-			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
-							  method='L-BFGS-B', options={'maxiter': maxiter}, bounds=bnds)
-		else:
-			print "No parameters to optimise!?"
-			return False
-
-		self.weights = SortedDict(izip(self.learnt_features.iterkeys(), result.x.tolist()))
-		if not result.success:
-			print result.message
-		return True
-
-	def frequency_tag(self, unlabeled_sequence):
-		""" Label with the highest frequency word label (base line)
-		:param unlabeled_sequence: List of sentences, which are lists of words.
-		:return: List if labeled sentences: lists of (word) tuple pairs.
-		"""
-		highest_freq_tag = max(self.tag_count.iterkeys(), key=(lambda key: self.tag_count[key]))
-		tags = []
-		for word in unlabeled_sequence:
-			if word in self.word_tag_count:
-				best = max(self.word_tag_count[word].iterkeys(), key=(lambda key: self.word_tag_count[word][key]))
-				tags += [best]
-			else:
-				# unseen word TODO: calculate an Unseen Word distribution using the CV set?
-				tags += [highest_freq_tag]
-		return tags
-
-	def label(self, seq):
-		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
-		:param seq: Lists of words to tag
-		:return: List of tags.
-		"""
-		sentence = self.normaliser.sentence(seq)
-		all_tags = self.tag_count.keys()
-		# Try and guess the tags for all the words first to save time and increase the features.
-		tags = self.guess_tags(sentence)
-		context = Context((sentence, tags), self.feature_templates)
-		if tags[0]:
-			start_p = dict.fromkeys(all_tags, 0.01/(len(all_tags)-1))
-			start_p[tags[0]] = 0.99
-		else:
-			start_p = dict([(t, self.potential(t, None, context, 0)) for t in all_tags])
-		prob, tags = Viterbi.viterbi(sentence, all_tags, start_p, self)
-		return tags
-
-	def tag(self, sentence):
-		return self.label(sentence)
-
-	def potential(self, label, prev_label, context, i):
-		""" Wrapper interface to the probabilities method. Sets the current and previous labels in the context before
-			calling the method. Used for prediction on the Viterbi and Forward-Backwards algorithms
-		:param label: Current label/tag
-		:param prev_label: previous label/tag
-		:param context: Context object
-		:param i: index in the context at which we are getting the probabilities for
-		:return:
-		"""
-		tags = context.labels
-		tags[i] = label
-		if i > 0:
-			tags[i-1] = prev_label
-		# Need to recreate a new Context with the new tags so the features get regenerated.
-		return self.probabilities(i, Context((context.words, tags), self.feature_templates), self.weights)[label]
-
-	def potential_backward(self, prev_label, label, context, i):
-		""" Same as potential() but we're going in the other direction for the backwards part of the forward-backwards
-			algo.
-		"""
-		tags = context.labels
-		tags[i] = label
-		if i > 0:
-			tags[i+1] = prev_label
-		# Need to recreate a new Context with the new tags so the features get regenerated.
-		return self.probabilities(i, Context((context.words, tags), self.feature_templates), self.weights)[label]
-
-	def tag_probability_distributions(self, context):
-		fb = ForwardBackward(self)
-		return fb.forward_backward(context, self.tag_count.keys())
-
-	def multi_tag(self, unlabeled_sequence, ambiguity = 0.0):
-		tags = []
-		normalised_sentence = self.normaliser.sentence(unlabeled_sequence)
-		context = Context((normalised_sentence, self.guess_tags(normalised_sentence)))
-		distros = self.tag_probability_distributions(context)  # tag probability distributions for each word
-		tags = self.threshold(distros, ambiguity) if ambiguity > 0.0 else distros
-		show(tags, unlabeled_sequence)
-		return tags
-
-	@classmethod
-	def threshold(cls, tag_probability_distributions, ambiguity):
-		""" Threshold based on a given ambiguity level which is a percentage of the highest probability in the distribution.
-		:param tag_probability_distribution: list of dicts which have tags as keys and probabilities as values
-		:param ambiguity: float between 0 and 1
-		:return: {tag: prob} dict
-		"""
-		tags = []
-		for i, tag_probs in enumerate(tag_probability_distributions):
-			c_max = max(tag_probs.iterkeys(), key=(lambda key: tag_probs[key]))
-			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if c == c_max or p > (ambiguity * tag_probs[c_max]) )
-			tags.append(top_tags)
-		assert len(tags) == len(tag_probability_distributions)
-		return tags
-
-	def probabilities(self, i, context, v=None):
-		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
-			sentence/sequence with a given feature.
-			aka softmax function
-		:param i: int. position in the context
-		:param context: Context object.
-		:param v: dict. parameter weight vector for each feature. Defaults to the current version in the model.
-		:return: dict. of label->probability at the given index in the context
-		"""
-		if v is None:
-			v = self.weights
-
-		class_probabilities = dict()
-		for label in self.tag_count.iterkeys():
-			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
-			for feature in context.get_features(i, label):
-				if feature in v:
-					class_probabilities[label] *= exp(v[feature])  # exp(a+b) = exp(a) * exp(b)
-		return normalize(class_probabilities)
-
-	def add_tag(self, w, t):
-		""" Keep track of words and their tags
-		:param w: word
-		:param t: tag/label
-		"""
-		self.total += 1
-		self.tag_count.setdefault(t, 0)
-		self.tag_count[t] += 1
-		self.word_tag_count.setdefault(w, defaultdict(int))
-		self.word_tag_count[w][t] += 1
-
-	def _make_tagdict(self):
-		"""Make a tag dictionary for single-tag words."""
-		freq_thresh = 10  # doesn't scale to different data set sizes :(
-		ambiguity_thresh = 0.97
-		for word, tag_freqs in self.word_tag_count.items():
-			tag, mode = max(tag_freqs.items(), key=lambda item: item[1])
-			n = sum(tag_freqs.values())
-			# Don't add rare words to the tag dictionary
-			# Only add quite unambiguous words
-			if n >= freq_thresh and (float(mode) / n) >= ambiguity_thresh:
-				self.tagdict[word] = tag
-
-
 class CollinsNormalisation(WordNormaliser):
 	""" Normalisations taken from Michel Collins notes
 		'Chapter 2: Tagging problems and Hidden Markov models'
@@ -678,6 +380,304 @@ class OrthographicFeatures(SequenceFeaturesTemplate):
 	@classmethod
 	def brief_word_class(self, word_class):
 		return re.sub(r'(.)\1+', r'\1', word_class)
+
+
+class MaxEntMarkovModel(SequenceModel):
+	""" Maximum Entropy Markov Model
+		What makes it Markov is that the previous two labels are part of the
+		features which are passed on via th context.
+	"""
+
+	def __init__(self, feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation):
+		"""
+		:param feature_templates: Instance of SequenceFeaturesTemplate
+		:param word_normaliser: Instance of WordNormaliser
+		:param regularization_parameter: Parameter used to tune the regularization amount.
+		:return:
+		"""
+		super(MaxEntMarkovModel, self).__init__()
+		self.feature_templates = feature_templates
+		self.normaliser = word_normaliser
+		# self.learnt_features = SortedDict()  # all features broken down into counts for each label
+		self.learnt_features = SortedDict()  # full features including labels
+		self.weights = SortedDict()  # lambdas aka feature weights aka model parameters
+		self.total = 0  # Total words seen in training corpus
+		self.tag_count = {}  # Keep a count of each tag
+		self.word_tag_count = {}  # Keep track of word -> tag -> count
+		self.tagdict = {}  # To be used for fast lookup of unambigous words
+
+	@classmethod
+	def save_file(cls, save_dir=None, filename_prefix = ''):
+		return path.join(save_dir, "MaxEntMarkovModel" + filename_prefix + ".pickle")
+
+	def save(self, save_dir=None, filename_prefix = '', zip = False):
+		if save_dir is None:
+			save_dir = path.join(path.dirname(__file__))
+		file_name = self.save_file(save_dir, filename_prefix)
+		print "Saving MaxEntMarkovModel:", file_name
+		with open(file_name, 'wb') as f:
+			pickle.dump(self.__dict__, f, -1)
+			print "Model saved!"
+		return file_name
+
+	def load(self, save_dir=None, filename_prefix = '', zipped = False):
+		if save_dir is None:
+			save_dir = path.join(path.dirname(__file__))
+		file_name = self.save_file(save_dir, filename_prefix) + ".gz" if zipped else ''
+		if path.exists(file_name):
+			print "Loading MaxEntMarkovModel:", file_name
+			op = gzip.open if zipped else open
+			with op(file_name, 'rb') as f:
+				self.__dict__.update(pickle.load(f))
+			print "Model loaded!"
+			return self
+		else:
+			raise Exception("MaxEntMarkovModel not loaded! File does not exist? '%s'" % file_name)
+
+	def get_labels(self, word):
+		""" Use tag dict. of all seen words. """
+		if word in self.word_tag_count:
+			return self.word_tag_count[word].keys()
+		else:
+			return self.tag_count.keys()
+
+	def guess_tag(self, word):
+		""" Use the more selective tagdict of seen tags. """
+		guess = self.tagdict.get(word)
+		return [guess] if guess else self.tag_count.keys()
+
+	def guess_tags(self, sentence):
+		tags = []
+		for word in sentence:
+			guess = self.tagdict.get(word)
+			tags.append(guess) if guess else tags.append('')
+		return tags
+
+	def get_classes(self):
+		return self.tag_count.keys()
+
+	def train(self, data, regularization=0.33, maxiter=1, optimise=True):
+		"""
+		:param data: List of sentences, Sentences are lists if (word, label) sequences.
+		:return: true on success, false otherwise
+		"""
+		for sentence in self.normaliser.all(data):
+			context = Context(sentence, self.feature_templates)
+			for i, word in enumerate(context.words):
+				label = context.labels[i]
+				self.add_tag(word, label)
+				for f in context.get_features(i, label):
+					self.learnt_features.setdefault(f, 0)
+					self.learnt_features[f] += 1
+					self.weights.setdefault(f, 1.0)  # initial default to 1.0
+		self._make_tagdict()
+		if optimise:
+			return self._learn_parameters(data, regularization, maxiter)
+		else:
+			return False
+
+	@classmethod
+	def _merge_weight_values(cls, features, values):
+		return SortedDict(izip(features, values))
+
+	def _learn_parameters(self, data, regularization, maxiter):
+		""" Learn the parameter vector (weights) for the model
+		:param data: List of sentences, Sentences are lists if (word, label) sequences.
+		:return: True on success, False otherwise
+		"""
+		print "Estimating parameters"
+
+		normaised_data = self.normaliser.all(data)
+
+		def objective(x):  # Objective function
+			v = self._merge_weight_values(self.weights.iterkeys(), x)
+			log_p = 0.0
+			for seq in normaised_data:
+				context = Context(seq, self.feature_templates)
+				for i, (_, label) in enumerate(seq):
+					probabilities = self.probabilities(i, context, v)
+					if probabilities[label] > 0.0:  # Getting zero some times...?
+						log_p += log(probabilities[label])
+
+			# Regularization
+			regulatiser = sum([param * param for param in v.itervalues()]) * (regularization / 2)
+
+			print "{:>13.2f} - {:>13.2f} = {:>+13.2f} (max:{:>+7.2f}, min:{:>+7.2f})".format(log_p, regulatiser, log_p - regulatiser, max(x), min(x))
+			return log_p - regulatiser
+
+		def inverse_gradient(x):
+			""" Inverse (coz we want the max. not min.) of the Gradient of the objective. """
+			v = self._merge_weight_values(self.weights.iterkeys(), x)
+			dV = SortedDict.fromkeys(self.weights.iterkeys(), 0.0)  # gradient vector output
+
+			# Expected/predicted feature counts
+
+			for n, seq in enumerate(normaised_data):
+				context = Context(seq, self.feature_templates)  # build all features for all positions in seq.
+				for i, _ in enumerate(seq):
+					probabilities = self.probabilities(i, context, v)  # get prob. for all labels at position i
+					for label in self.tag_count.iterkeys():
+						for feature in context.get_features(i, label):  # merge features with label at position i
+							if feature in v:
+								dV[feature] += probabilities[label]
+
+			# Actual feature counts + regularize
+			# Assumption: that the param. training is over the same data set as the feature extraction
+			for f, count in self.learnt_features.iteritems():
+				dV[f] -= count
+				dV[f] += v[f] * regularization
+
+			return array(dV.values())
+
+		# Maximise, actually.
+		params = self.weights.values()
+		bnds = [(-20, 20)] * len(params)  # upper and lower for each var max python can exp(*) without overflow
+		if len(params) > 0:
+			result = minimize(fun=lambda x: -objective(x), jac=lambda x: inverse_gradient(x), x0=params,\
+							  method='L-BFGS-B', options={'maxiter': maxiter}, bounds=bnds)
+		else:
+			print "No parameters to optimise!?"
+			return False
+
+		self.weights = SortedDict(izip(self.learnt_features.iterkeys(), result.x.tolist()))
+		if not result.success:
+			print result.message
+		return True
+
+	def frequency_tag(self, unlabeled_sequence):
+		""" Label with the highest frequency word label (base line)
+		:param unlabeled_sequence: List of sentences, which are lists of words.
+		:return: List if labeled sentences: lists of (word) tuple pairs.
+		"""
+		highest_freq_tag = max(self.tag_count.iterkeys(), key=(lambda key: self.tag_count[key]))
+		tags = []
+		for word in unlabeled_sequence:
+			if word in self.word_tag_count:
+				best = max(self.word_tag_count[word].iterkeys(), key=(lambda key: self.word_tag_count[word][key]))
+				tags += [best]
+			else:
+				# unseen word TODO: calculate an Unseen Word distribution using the CV set?
+				tags += [highest_freq_tag]
+		return tags
+
+	def label(self, seq):
+		""" Prediction: Calls the Viterbi algorithm to label each sentence in the input sequence
+		:param seq: Lists of words to tag
+		:return: List of tags.
+		"""
+		sentence = self.normaliser.sentence(seq)
+		all_tags = self.tag_count.keys()
+		# Try and guess the tags for all the words first to save time and increase the features.
+		tags = self.guess_tags(sentence)
+		context = Context((sentence, tags), self.feature_templates)
+		if tags[0]:
+			start_p = dict.fromkeys(all_tags, 0.01/(len(all_tags)-1))
+			start_p[tags[0]] = 0.99
+		else:
+			start_p = dict([(t, self.potential(t, None, context, 0)) for t in all_tags])
+		prob, tags = Viterbi.viterbi(sentence, all_tags, start_p, self)
+		return tags
+
+	def tag(self, sentence):
+		return self.label(sentence)
+
+	def potential(self, label, prev_label, context, i):
+		""" Wrapper interface to the probabilities method. Sets the current and previous labels in the context before
+			calling the method. Used for prediction on the Viterbi and Forward-Backwards algorithms
+		:param label: Current label/tag
+		:param prev_label: previous label/tag
+		:param context: Context object
+		:param i: index in the context at which we are getting the probabilities for
+		:return:
+		"""
+		tags = context.labels
+		tags[i] = label
+		if i > 0:
+			tags[i-1] = prev_label
+		# Need to recreate a new Context with the new tags so the features get regenerated.
+		return self.probabilities(i, Context((context.words, tags), self.feature_templates), self.weights)[label]
+
+	def potential_backward(self, prev_label, label, context, i):
+		""" Same as potential() but we're going in the other direction for the backwards part of the forward-backwards
+			algo.
+		"""
+		tags = context.labels
+		tags[i] = label
+		if i > 0:
+			tags[i+1] = prev_label
+		# Need to recreate a new Context with the new tags so the features get regenerated.
+		return self.probabilities(i, Context((context.words, tags), self.feature_templates), self.weights)[label]
+
+	def tag_probability_distributions(self, context):
+		fb = ForwardBackward(self)
+		return fb.forward_backward(context, self.tag_count.keys())
+
+	def multi_tag(self, unlabeled_sequence, ambiguity = 0.0):
+		tags = []
+		normalised_sentence = self.normaliser.sentence(unlabeled_sequence)
+		context = Context((normalised_sentence, self.guess_tags(normalised_sentence)))
+		distros = self.tag_probability_distributions(context)  # tag probability distributions for each word
+		tags = self.threshold(distros, ambiguity) if ambiguity > 0.0 else distros
+		show(tags, unlabeled_sequence)
+		return tags
+
+	@classmethod
+	def threshold(cls, tag_probability_distributions, ambiguity):
+		""" Threshold based on a given ambiguity level which is a percentage of the highest probability in the distribution.
+		:param tag_probability_distribution: list of dicts which have tags as keys and probabilities as values
+		:param ambiguity: float between 0 and 1
+		:return: {tag: prob} dict
+		"""
+		tags = []
+		for i, tag_probs in enumerate(tag_probability_distributions):
+			c_max = max(tag_probs.iterkeys(), key=(lambda key: tag_probs[key]))
+			top_tags = dict( (c,p) for c, p in tag_probs.iteritems() if c == c_max or p > (ambiguity * tag_probs[c_max]) )
+			tags.append(top_tags)
+		assert len(tags) == len(tag_probability_distributions)
+		return tags
+
+	def probabilities(self, i, context, v=None):
+		""" Gets the probability distribution for all the tags/classes/labels for the current word/item in the
+			sentence/sequence with a given feature.
+			aka softmax function
+		:param i: int. position in the context
+		:param context: Context object.
+		:param v: dict. parameter weight vector for each feature. Defaults to the current version in the model.
+		:return: dict. of label->probability at the given index in the context
+		"""
+		if v is None:
+			v = self.weights
+
+		class_probabilities = dict()
+		for label in self.tag_count.iterkeys():
+			class_probabilities.setdefault(label, 1.0)  # coz exp(0) = 1
+			for feature in context.get_features(i, label):
+				if feature in v:
+					class_probabilities[label] *= exp(v[feature])  # exp(a+b) = exp(a) * exp(b)
+		return normalize(class_probabilities)
+
+	def add_tag(self, w, t):
+		""" Keep track of words and their tags
+		:param w: word
+		:param t: tag/label
+		"""
+		self.total += 1
+		self.tag_count.setdefault(t, 0)
+		self.tag_count[t] += 1
+		self.word_tag_count.setdefault(w, defaultdict(int))
+		self.word_tag_count[w][t] += 1
+
+	def _make_tagdict(self):
+		"""Make a tag dictionary for single-tag words."""
+		freq_thresh = 10  # doesn't scale to different data set sizes :(
+		ambiguity_thresh = 0.97
+		for word, tag_freqs in self.word_tag_count.items():
+			tag, mode = max(tag_freqs.items(), key=lambda item: item[1])
+			n = sum(tag_freqs.values())
+			# Don't add rare words to the tag dictionary
+			# Only add quite unambiguous words
+			if n >= freq_thresh and (float(mode) / n) >= ambiguity_thresh:
+				self.tagdict[word] = tag
 
 
 class Context(object):

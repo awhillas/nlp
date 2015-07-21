@@ -1,5 +1,4 @@
 import dispy
-import dispy.httpd
 import functools
 import cPickle as pickle
 import gzip
@@ -129,7 +128,7 @@ class MemmMultiTag(MachineLearningModule):
 		self.all_tags = tagger.get_classes()
 
 def load_memm_tagger(working_dir, reg=0.66):
-	tagger = MaxEntMarkovModel(feature_templates=Ratnaparkhi96Features, word_normaliser=CollinsNormalisation)
+	tagger = MaxEntMarkovModel()
 	tagger.load(working_dir, '-reg_%.2f' % reg, True)
 	return tagger
 

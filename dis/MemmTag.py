@@ -67,7 +67,7 @@ class MemmTag(MachineLearningModule):
 					data_type = 'multi'
 
 				if os.path.exists(tagged_file_name(self.dir('working'), data_name, data_type, reg) + ".gz"):
-					continue
+					continue  # skip if its been done
 
 				func = functools.partial(setup, self.dir('working'), reg)  # make setup function with some parameters
 				cluster = dispy.JobCluster(tagging_type, setup=func, cleanup=cleanup, reentrant=True)

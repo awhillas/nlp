@@ -50,20 +50,17 @@ class Parse(object):
 class IPerceptronParser(object):
 	PICKLE_NAME = 'preceptronParserModel.pickle'
 
-	def __init__(self,load=True, save_dir=None):
+	def __init__(self, load_path=None):
 		self.model = Perceptron(MOVES)
-		self.file_path = path.join(save_dir if save_dir else path.dirname(__file__), Parser.PICKLE_NAME)
 		self.confusion_matrix = defaultdict(lambda: defaultdict(int))
-		if load:
-			self.model.load(self.file_path)
+		if load_path:
+			self.model.load(load_path)
 
-	def save(self, save_dir=None):
-		save_path = path.join(save_dir, Parser.PICKLE_NAME) if save_dir else self.file_path
-		self.model.save(save_path)
+	def save(self, file_path):
+		self.model.save(file_path)
 
-	def load(self, save_dir=None):
-		load_path = path.join(save_dir, Parser.PICKLE_NAME) if save_dir else self.file_path
-		return self.model.load(load_path)
+	def load(self, file_path):
+		return self.model.load(file_path)
 
 	def parse(self, words, tags):
 		return NotImplemented
@@ -136,7 +133,7 @@ class AmbiguousParser(IPerceptronParser):
 			self.model.update(best, guess, features)
 			i = transition(guess, i, stack, parse)
 			self.confusion_matrix[best][guess] += 1
-		return len([i for i in range(n-1) if parse.heads[i] == gold_heads[i]])
+		return len([i for i in range(n-1) if parse.heads[i] == gold_heads[i]]) - 2  # remove 2 for the padding ether end.
 
 
 def transition(move, i, stack, parse):
@@ -267,26 +264,39 @@ def extract_features(words, tags, n0, n, stack, parse, pos_multi = []):
 
 	features['bias'] = 1
 	# Add word and tag unigrams
-	for w in (Wn0, Wn1, Wn2, Ws0, Ws1, Ws2, Wn0b1, Wn0b2, Ws0b1, Ws0b2, Ws0f1, Ws0f2):
+	for w in (Wn0, Wn1, Wn2, Ws0, Ws1, Ws2, Wn0b1, Wn0b2, Ws0b1, Ws0b2, Ws0f1, Ws0f2):  # TODO use the actual variable name see tags bellow
 		if w:
 			features['w=%s' % w] = 1
 
+	var = tag = None
+	for var, tag in locals().iteritems(): # (Tn0, Tn1, Tn2, Ts0, Ts1, Ts2, Tn0b1, Tn0b2, Ts0b1, Ts0b2, Ts0f1, Ts0f2):
+		if var.startswith('T') and tag:
+			features['%s=%s' % (var, tag)] = 1
+
 	# Add multi-POS tag unigrams
-	if pos_multi and n0 < len(pos_multi):
-		dick = get_stack_context_2D(depth, stack, pos_multi)
-		dick.update(get_buffer_context_2D(n0, n, pos_multi))
-		for word in [n0, s0]:
-			for parze in [parse.rights, parse.lefts]:
-				something = get_parse_context_2D(word, parze, pos_multi)
-				dick.update(something)
-		#dick.update({((k,v) for k,v in get_parse_context_2D(word, parze, pos_multi)) for word in [n0, s0] for parze in [parse.rights, parse.lefts]})
-		for tag, prob in dick.iteritems():
-			if prob < 1.0:
-				features['t=p(%s)' % tag] = prob
-	# else:  # TODO: Test if we should just do away with the single POS tags
-	for t in (Tn0, Tn1, Tn2, Ts0, Ts1, Ts2, Tn0b1, Tn0b2, Ts0b1, Ts0b2, Ts0f1, Ts0f2):
-		if t:
-			features['t=%s' % t] = 1
+	# if pos_multi and n0 < len(pos_multi):  # n0 is current position in the buffer
+	# 	dick = get_stack_context_2D(depth, stack, pos_multi)  # stack
+	# 	dick.update(get_buffer_context_2D(n0, n, pos_multi))  # buffer
+	# 	for word in [n0, s0]:
+	# 		for arcs in [parse.rights, parse.lefts]:  # left and right arcs
+	# 			something = get_parse_context_2D(word, arcs, pos_multi)  # arcs
+	# 			dick.update(something)
+	# 	for tag, prob in dick.iteritems():
+	# 		if prob < 1.0:
+	# 			features['t=p(%s)' % tag] = prob
+	# Multi tagged versions
+	MultiTs0, MultiTs1, MultiTs2 = get_stack_context(depth, stack, pos_multi)
+	MultiTn0, MultiTn1, MultiTn2 = get_buffer_context(n0, n, pos_multi)
+	MultiVn0b, MultiTn0b1, MultiTn0b2 = get_parse_context(n0, parse.lefts, pos_multi)
+	_, MultiTn0f1, MultiTn0f2 = get_parse_context(n0, parse.rights, pos_multi)
+	_, MultiTs0b1, MultiTs0b2 = get_parse_context(s0, parse.lefts, pos_multi)
+	_, MultiTs0f1, MultiTs0f2 = get_parse_context(s0, parse.rights, pos_multi)
+	multi_tags = var = tag = prob = None
+	for var, multi_tags in locals().iteritems():
+		if var.startswith('Multi') and isinstance(multi_tags, dict):
+			for tag, prob in multi_tags.iteritems():
+				features['%s=p(%s)' % (var, tag)] = prob
+
 
 	# Add word/tag pairs
 	for i, (w, t) in enumerate(((Wn0, Tn0), (Wn1, Tn1), (Wn2, Tn2), (Ws0, Ts0))):
@@ -379,8 +389,7 @@ class Perceptron(object):
 				continue
 			weights = all_weights[feat]
 			for clas, weight in weights.items():
-				if clas:
-					scores[clas] += value * weight
+				scores[clas] += value * weight
 		return scores
 
 	def update(self, truth, guess, features):
@@ -393,10 +402,10 @@ class Perceptron(object):
 		self.i += 1
 		if truth == guess:
 			return None
-		for f in features:
+		for f, v in features.iteritems():
 			weights = self.weights.setdefault(f, {})
-			upd_feat(truth, f, weights.get(truth, 0.0), 1.0)
-			upd_feat(guess, f, weights.get(guess, 0.0), -1.0)
+			upd_feat(truth, f, weights.get(truth, 0.0), v)
+			upd_feat(guess, f, weights.get(guess, 0.0), -v)
 
 	def average_weights(self):
 		for feat, weights in self.weights.items():
@@ -417,9 +426,10 @@ class Perceptron(object):
 	def load(self, save_dir):
 		if path.exists(save_dir):
 			self.weights = pickle.load(open(save_dir))
+			print "Loaded:", save_dir
 			return True
 		else:
-			return False
+			raise IOError("Could not load:" + save_dir)
 
 
 class PerceptronTagger(object):

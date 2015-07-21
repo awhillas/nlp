@@ -239,6 +239,7 @@ class MachineLearningModule:  # Interface.
 		self._experiment.out(file_name, text)
 
 	def log(self, key, value):
+		print "Logging", key, value
 		self._experiment.log(key, value)
 		return value
 
